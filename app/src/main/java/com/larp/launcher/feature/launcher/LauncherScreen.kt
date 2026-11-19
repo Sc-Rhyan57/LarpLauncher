@@ -20,7 +20,6 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.automirrored.filled.PlayArrow
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Extension
@@ -28,6 +27,7 @@ import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -201,7 +201,7 @@ private fun GameStatusCard(state: LauncherUiState, onLaunchGame: () -> Unit) {
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 )
             ) {
-                Icon(imageVector = Icons.AutoMirrored.Filled.PlayArrow, contentDescription = null)
+                Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(text = "Iniciar jogo", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             }
@@ -255,7 +255,7 @@ private fun QuickAccessCard(entry: QuickAccess, onClick: () -> Unit) {
                 modifier = Modifier.align(Alignment.TopEnd)
             ) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.PlayArrow,
+                    imageVector = Icons.Filled.PlayArrow,
                     contentDescription = "Abrir ${entry.label}",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp)

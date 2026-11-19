@@ -32,13 +32,13 @@ class Diario private constructor(private val context: Context) {
         save()
     }
 
-    suspend fun finish(exitCode: Int = 0): String = withContext(Dispatchers.IO) {
+    suspend fun finish(reason: String = "ok"): String = withContext(Dispatchers.IO) {
         val endTime = System.currentTimeMillis()
         val payload = buildJsonObject {
             data.forEach { (k, v) -> put(k, v) }
             put("endedAt", endTime)
             put("durationMs", endTime - startTime)
-            put("exitCode", exitCode)
+            put("exitReason", reason)
             put("steps", buildJsonArray {
                 steps.forEach { (name, ts) -> add(buildJsonObject {
                     put("name", name)

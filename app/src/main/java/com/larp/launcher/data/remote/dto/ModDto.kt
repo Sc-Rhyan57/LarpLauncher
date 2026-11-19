@@ -21,6 +21,7 @@ data class ModDto(
 data class ModTicketDto(
     val id: String,
     val name: String,
+    val version: String = "",
     val downloadUrl: String,
     val key: String,
     val checksum: String,

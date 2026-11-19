@@ -26,8 +26,8 @@ sealed interface LarpRealtimeEvent {
     data class Room(val payload: RoomEventDto) : LarpRealtimeEvent { override val type = "room" }
     data class Broadcast(val payload: BroadcastDto) : LarpRealtimeEvent { override val type = "broadcast" }
     data class Announcement(val payload: AnnouncementDto) : LarpRealtimeEvent { override val type = "announcement" }
-    data class VoiceOffer(val sdp: String, val type: String, val roomId: String, val userId: String) : LarpRealtimeEvent { override val type = "voice_offer" }
-    data class VoiceAnswer(val sdp: String, val type: String, val roomId: String, val userId: String) : LarpRealtimeEvent { override val type = "voice_answer" }
+    data class VoiceOffer(val sdp: String, val sdpType: String, val roomId: String, val userId: String) : LarpRealtimeEvent { override val type = "voice_offer" }
+    data class VoiceAnswer(val sdp: String, val sdpType: String, val roomId: String, val userId: String) : LarpRealtimeEvent { override val type = "voice_answer" }
     data class VoiceIce(val candidate: String, val sdpMid: String?, val sdpMLineIndex: Int?, val roomId: String, val userId: String) : LarpRealtimeEvent { override val type = "voice_ice" }
     data class Presence(val userId: String, val online: Boolean) : LarpRealtimeEvent { override val type = "presence" }
     data class Raw(val raw: String) : LarpRealtimeEvent { override val type = "raw" }
@@ -72,19 +72,19 @@ class LarpRealtimeClient @Inject constructor(
                         "voice_offer" -> {
                             val o = payload as JsonObject
                             LarpRealtimeEvent.VoiceOffer(
-                                o["sdp"]!!.jsonPrimitive.content,
-                                o["type"]!!.jsonPrimitive.content,
-                                o["roomId"]!!.jsonPrimitive.content,
-                                o["userId"]!!.jsonPrimitive.content
+                                sdp = o["sdp"]!!.jsonPrimitive.content,
+                                sdpType = o["type"]!!.jsonPrimitive.content,
+                                roomId = o["roomId"]!!.jsonPrimitive.content,
+                                userId = o["userId"]!!.jsonPrimitive.content
                             )
                         }
                         "voice_answer" -> {
                             val o = payload as JsonObject
                             LarpRealtimeEvent.VoiceAnswer(
-                                o["sdp"]!!.jsonPrimitive.content,
-                                o["type"]!!.jsonPrimitive.content,
-                                o["roomId"]!!.jsonPrimitive.content,
-                                o["userId"]!!.jsonPrimitive.content
+                                sdp = o["sdp"]!!.jsonPrimitive.content,
+                                sdpType = o["type"]!!.jsonPrimitive.content,
+                                roomId = o["roomId"]!!.jsonPrimitive.content,
+                                userId = o["userId"]!!.jsonPrimitive.content
                             )
                         }
                         "voice_ice" -> {

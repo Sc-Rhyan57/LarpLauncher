@@ -31,7 +31,8 @@ class InteropPronto @Inject constructor(
             val pm = context.packageManager
             val pkgInfo = pm.getPackageInfo(envProvider.current().gamePackage, 0)
             val versionCode = if (android.os.Build.VERSION.SDK_INT >= 28) pkgInfo.longVersionCode else pkgInfo.versionCode.toLong()
-            val libil2cpp = File(pkgInfo.applicationInfo.nativeLibraryDir, "libil2cpp.so")
+            val appInfo = pkgInfo.applicationInfo ?: throw IOException("ApplicationInfo nulo para o jogo")
+            val libil2cpp = File(appInfo.nativeLibraryDir, "libil2cpp.so")
             val bepinexDir = cache.bepinexDir()
             val interopDir = File(bepinexDir, "interop")
             val marcaFile = File(interopDir, MARCA)
@@ -52,7 +53,7 @@ class InteropPronto @Inject constructor(
                 listener.onStep(stepName, true, 0f)
                 downloadFile(ticket.downloadUrl, interopPkg) { read, total ->
                     val p = if (total > 0) read.toFloat() / total else -1f
-                    listener.onStep(stepName, true, p)
+                    kotlinx.coroutines.runBlocking { listener.onStep(stepName, true, p) }
                 }
                 try {
                     if (ticket.checksum.equals(ModPackage.sha256(interopPkg), ignoreCase = true)) {
@@ -115,7 +116,7 @@ class InteropPronto @Inject constructor(
     }
 
     private fun apagarDlls(dir: File) {
-        dir.listFiles?.forEach { f -> if (f.isFile && f.name.endsWith(".dll")) f.delete() }
+        dir.listFiles()?.forEach { f -> if (f.isFile && f.name.endsWith(".dll")) f.delete() }
     }
 
     private fun ler(file: File): String {

@@ -39,6 +39,7 @@ data class LocalMod(
 data class ModTicket(
     val id: String,
     val name: String,
+    val version: String = "",
     val downloadUrl: String,
     val key: String,
     val checksum: String,

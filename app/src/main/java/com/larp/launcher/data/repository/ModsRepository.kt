@@ -46,6 +46,7 @@ class ModsRepository @Inject constructor(
         ModTicket(
             id = ticket.id,
             name = ticket.name,
+            version = ticket.version,
             downloadUrl = ticket.downloadUrl,
             key = ticket.key,
             checksum = ticket.checksum,

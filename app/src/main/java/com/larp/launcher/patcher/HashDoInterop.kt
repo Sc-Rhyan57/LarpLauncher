@@ -11,7 +11,7 @@ class HashDoInterop @Inject constructor() {
     fun calcular(libil2cpp: File, unityLibs: File): String {
         val md = MessageDigest.getInstance("MD5")
         somar(md, libil2cpp)
-        unityLibs.listFiles?.forEach { f ->
+        unityLibs.listFiles()?.forEach { f ->
             if (f.isFile && f.name.endsWith(".dll")) {
                 md.update(f.name.toByteArray(Charsets.UTF_8))
                 somar(md, f)

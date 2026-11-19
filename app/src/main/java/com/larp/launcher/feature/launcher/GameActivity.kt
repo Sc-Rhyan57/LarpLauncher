@@ -15,6 +15,7 @@ import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.Window
 import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.ProgressBar
@@ -24,11 +25,17 @@ import com.larp.launcher.diagnostics.Diario
 import com.larp.launcher.patcher.GameContext
 import com.larp.launcher.patcher.GameEnv
 import com.larp.launcher.patcher.ModRuntime
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.runBlocking
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Proxy
 import java.util.Locale
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class GameActivity : Activity() {
+
+    @Inject lateinit var modRuntime: ModRuntime
 
     private var env: GameEnv? = null
     private var appContext: GameContext? = null
@@ -55,9 +62,9 @@ class GameActivity : Activity() {
     override fun getApplicationContext(): Context = appContext ?: super.getApplicationContext()
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        requestWindowFeature(FEATURE_NO_TITLE)
+        requestWindowFeature(Window.FEATURE_NO_TITLE)
         super.onCreate(savedInstanceState)
-        java.io.File(getFilesDir(), ERROR_FILE).delete()
+        java.io.File(filesDir, ERROR_FILE).delete()
         val e = env
         if (e == null) {
             fail("Não consegui abrir o jogo instalado.", GameEnv.error())
@@ -96,7 +103,15 @@ class GameActivity : Activity() {
     private fun loadMods(env: GameEnv) {
         val privateMods = intent?.getBooleanExtra(EXTRA_PRIVATE_MODS, true) ?: true
         try {
-            val ok = ModRuntime.prepare(env, privateMods)
+            val domainEnv = com.larp.launcher.domain.model.GameEnv(
+                packageName = env.gamePackage,
+                versionName = "",
+                versionCode = 0,
+                nativeLibraryDir = env.appInfo.nativeLibraryDir ?: "",
+                sourceDir = env.appInfo.sourceDir ?: "",
+                isInstalled = true
+            )
+            val ok = runBlocking { modRuntime.prepare(domainEnv, privateMods) }
             if (ok) {
                 Boot.load("fusion")
                 modsLoaded = true
@@ -107,9 +122,7 @@ class GameActivity : Activity() {
         } catch (t: Throwable) {
             Log.e(TAG, "Mods desativados nesta sessão", unwrap(t))
             diario = Diario.begin(this)
-            diario?.let { d ->
-                kotlinx.coroutines.runBlocking { d.finish("mods_desativados: ${unwrap(t)}") }
-            }
+            runBlocking { diario?.finish("mods_desativados: ${unwrap(t).message}") }
         }
     }
 
@@ -158,7 +171,7 @@ class GameActivity : Activity() {
                 val stage = stageField?.getInt(null) ?: 0
                 val msg = messageField?.get(null)?.toString() ?: ""
                 val elapsed = SystemClock.uptimeMillis() - start
-                kotlinx.coroutines.runBlocking { d.step("stage=$stage msg=$msg") }
+                runBlocking { d.step("stage=$stage msg=$msg") }
                 if (stage < 2 && elapsed <= MAX_WAIT_MS && !isFinishing) {
                     val pct = progressFor(stage, msg)
                     if (pct > shown) shown = pct
@@ -172,7 +185,7 @@ class GameActivity : Activity() {
                     handler.postDelayed(this, 200)
                     return
                 }
-                kotlinx.coroutines.runBlocking { d.finish(if (stage >= 2) "ok" else if (isFinishing) "fechado" else "tempo_esgotado") }
+                runBlocking { d.finish(if (stage >= 2) "ok" else if (isFinishing) "fechado" else "tempo_esgotado") }
                 bar.progress = 100
                 overlay.animate().alpha(0f).setDuration(350).withEndAction {
                     (overlay.parent as? ViewGroup)?.removeView(overlay)
@@ -193,7 +206,7 @@ class GameActivity : Activity() {
             gravity = Gravity.CENTER
         }
         setContentView(view)
-        kotlinx.coroutines.runBlocking { diario?.finish(message) }
+        runBlocking { diario?.finish(message) }
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()

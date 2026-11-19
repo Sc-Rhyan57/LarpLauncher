@@ -78,7 +78,6 @@ class GameEnv private constructor(
                 dataDir = launcherAppInfo.dataDir
                 if (android.os.Build.VERSION.SDK_INT >= 24) {
                     deviceProtectedDataDir = launcherAppInfo.deviceProtectedDataDir
-                    credentialProtectedDataDir = launcherAppInfo.credentialProtectedDataDir
                 }
                 uid = launcherAppInfo.uid
                 processName = launcherAppInfo.processName

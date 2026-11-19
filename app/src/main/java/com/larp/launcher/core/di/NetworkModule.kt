@@ -72,8 +72,9 @@ object NetworkModule {
     @Singleton
     fun provideRealtimeClient(
         client: OkHttpClient,
-        json: Json
-    ): LarpRealtimeClient = LarpRealtimeClient(client, json)
+        json: Json,
+        envProvider: LarpEnvProvider
+    ): LarpRealtimeClient = LarpRealtimeClient(client, json, envProvider)
 }
 
 class BaseUrlInterceptor(private val envProvider: LarpEnvProvider) : Interceptor {

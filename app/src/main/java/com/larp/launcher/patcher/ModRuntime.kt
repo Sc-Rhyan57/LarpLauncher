@@ -117,7 +117,7 @@ class ModRuntime @Inject constructor(
     }
 
     private fun deleteTree(file: File) {
-        file.listFiles?.forEach { deleteTree(it) }
+        file.listFiles()?.forEach { deleteTree(it) }
         file.delete()
     }
 

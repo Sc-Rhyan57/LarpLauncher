@@ -28,3 +28,4 @@ env
 /secrets/
 hs_err_pid*
 replay_pid*
+app/src/main/jniLibs/*/libfrida-gadget.so.xz

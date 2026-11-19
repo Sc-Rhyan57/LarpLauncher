@@ -18,10 +18,10 @@ object ModPackage {
 
     private const val HEADER = 20
     private const val TAG = 32
-    private const val MAGIC_R = 82
-    private const val MAGIC_G = 71
-    private const val MAGIC_M = 77
-    private const val MAGIC_1 = 49
+    private const val MAGIC_R: Byte = 82
+    private const val MAGIC_G: Byte = 71
+    private const val MAGIC_M: Byte = 77
+    private const val MAGIC_1: Byte = 49
 
     fun extract(pkg: File, key: ByteArray, outputDir: File) {
         val encKey = hmac(key, "enc".toByteArray(Charsets.US_ASCII))

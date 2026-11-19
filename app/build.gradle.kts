@@ -1,6 +1,3 @@
-import java.io.File
-import java.net.URI
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -39,7 +36,7 @@ android {
         resValue("string", "larp_host", envOrProp("LARP_API_HOST", "larp-api.workers.dev"))
 
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+            abiFilters += listOf("arm64-v8a")
         }
     }
 
@@ -127,28 +124,23 @@ android {
     }
 }
 
-fun decompressXz(input: File, output: File) {
-    val process = ProcessBuilder("xz", "-d", "-c", input.absolutePath)
-        .redirectOutput(ProcessBuilder.Redirect.PIPE)
-        .redirectError(ProcessBuilder.Redirect.INHERIT)
-        .start()
-    output.outputStream().use { out ->
-        process.inputStream.use { it.copyTo(out, 64 * 1024) }
-    }
-    val code = process.waitFor()
-    if (code != 0) throw IllegalStateException("xz falhou (código $code). Instale xz-utils.")
-}
+val larpFridaVersion: String = envOrProp("larpFridaVersion", "17.2.1")
 
-tasks.register("downloadFridaGadget") {
-    group = "larp"
-    description = "Baixa libfrida-gadget.so do GitHub Releases da Frida para app/src/main/jniLibs/"
-    doLast {
-        val version = envOrProp("larpFridaVersion", "17.2.1")
-        val archs = listOf("arm64-v8a", "armeabi-v7a", "x86_64")
-        val jniDir = file("src/main/jniLibs")
-        jniDir.mkdirs()
+abstract class DownloadFridaGadget : org.gradle.api.DefaultTask() {
+    @get:org.gradle.api.tasks.Input
+    abstract val fridaVersion: org.gradle.api.provider.Property<String>
+
+    @get:org.gradle.api.tasks.OutputDirectory
+    abstract val jniDir: org.gradle.api.property.DirectoryProperty
+
+    @org.gradle.api.tasks.TaskAction
+    fun run() {
+        val version = fridaVersion.get()
+        val archs = listOf("arm64-v8a")
+        val dir = jniDir.get().asFile
+        dir.mkdirs()
         archs.forEach { arch ->
-            val target = file("$jniDir/$arch/libfrida-gadget.so")
+            val target = java.io.File(java.io.File(dir, arch), "libfrida-gadget.so")
             if (target.isFile && target.length() > 1_000_000) {
                 logger.lifecycle("[frida] $arch já existe (${target.length() / 1024} KB)")
                 return@forEach
@@ -163,9 +155,9 @@ tasks.register("downloadFridaGadget") {
             val assetName = "frida-gadget-$version-$fridaArch.so.xz"
             val url = "https://github.com/frida/frida/releases/download/$version/$assetName"
             logger.lifecycle("[frida] baixando $assetName de $url")
-            val tmpXz = file("$jniDir/$arch/libfrida-gadget.so.xz")
+            val tmpXz = java.io.File(target.parentFile, "libfrida-gadget.so.xz")
             try {
-                URI(url).toURL().openStream().use { input ->
+                java.net.URI(url).toURL().openStream().use { input ->
                     tmpXz.outputStream().use { output -> input.copyTo(output, 64 * 1024) }
                 }
                 logger.lifecycle("[frida] descompactando ${tmpXz.length() / 1024} KB")
@@ -175,12 +167,31 @@ tasks.register("downloadFridaGadget") {
             } catch (t: Throwable) {
                 logger.warn("[frida] falhou para $arch: ${t.message}")
                 target.delete()
-                if (arch == "arm64-v8a") throw t
+                throw t
             } finally {
                 tmpXz.delete()
             }
         }
     }
+
+    private fun decompressXz(input: java.io.File, output: java.io.File) {
+        val process = ProcessBuilder("xz", "-d", "-c", input.absolutePath)
+            .redirectOutput(ProcessBuilder.Redirect.PIPE)
+            .redirectError(ProcessBuilder.Redirect.INHERIT)
+            .start()
+        output.outputStream().use { out ->
+            process.inputStream.use { it.copyTo(out, 64 * 1024) }
+        }
+        val code = process.waitFor()
+        if (code != 0) throw IllegalStateException("xz falhou (código $code). Instale xz-utils.")
+    }
+}
+
+tasks.register<DownloadFridaGadget>("downloadFridaGadget") {
+    group = "larp"
+    description = "Baixa libfrida-gadget.so do GitHub Releases da Frida para app/src/main/jniLibs/arm64-v8a/"
+    fridaVersion.set(larpFridaVersion)
+    jniDir.set(layout.projectDirectory.dir("src/main/jniLibs"))
 }
 
 android.applicationVariants.configureEach {
