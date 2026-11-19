@@ -1,3 +1,6 @@
+import java.io.File
+import java.net.URI
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -124,6 +127,18 @@ android {
     }
 }
 
+fun decompressXz(input: File, output: File) {
+    val process = ProcessBuilder("xz", "-d", "-c", input.absolutePath)
+        .redirectOutput(ProcessBuilder.Redirect.PIPE)
+        .redirectError(ProcessBuilder.Redirect.INHERIT)
+        .start()
+    output.outputStream().use { out ->
+        process.inputStream.use { it.copyTo(out, 64 * 1024) }
+    }
+    val code = process.waitFor()
+    if (code != 0) throw IllegalStateException("xz falhou (código $code). Instale xz-utils.")
+}
+
 tasks.register("downloadFridaGadget") {
     group = "larp"
     description = "Baixa libfrida-gadget.so do GitHub Releases da Frida para app/src/main/jniLibs/"
@@ -150,7 +165,7 @@ tasks.register("downloadFridaGadget") {
             logger.lifecycle("[frida] baixando $assetName de $url")
             val tmpXz = file("$jniDir/$arch/libfrida-gadget.so.xz")
             try {
-                java.net.URI(url).toURL().openStream().use { input ->
+                URI(url).toURL().openStream().use { input ->
                     tmpXz.outputStream().use { output -> input.copyTo(output, 64 * 1024) }
                 }
                 logger.lifecycle("[frida] descompactando ${tmpXz.length() / 1024} KB")
@@ -166,18 +181,6 @@ tasks.register("downloadFridaGadget") {
             }
         }
     }
-}
-
-fun decompressXz(input: java.io.File, output: java.io.File) {
-    val process = ProcessBuilder("xz", "-d", "-c", input.absolutePath)
-        .redirectOutput(ProcessBuilder.Redirect.PIPE)
-        .redirectError(ProcessBuilder.Redirect.INHERIT)
-        .start()
-    output.outputStream().use { out ->
-        process.inputStream.use { it.copyTo(out, 64 * 1024) }
-    }
-    val code = process.waitFor()
-    if (code != 0) throw IllegalStateException("xz falhou (código $code). Instale xz-utils.")
 }
 
 android.applicationVariants.configureEach {
