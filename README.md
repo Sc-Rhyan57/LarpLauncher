@@ -2,7 +2,7 @@
 
 Open-source game launcher e patcher para mods de jogos Unity/IL2CPP no Android. Reconstrução em Kotlin com Jetpack Compose e Material Expressive (Material You), inspirado no projeto ReVanced Manager e com sistema de salas/broadcast/mural/voz estilo Regis Launcher.
 
-[![Build](https://github.com/<owner>/larp-launcher/actions/workflows/build.yml/badge.svg)](https://github.com/<owner>/larp-launcher/actions)
+[![Build](https://github.com/Sc-Rhyan57/LarpLauncher/actions/workflows/build.yml/badge.svg)](https://github.com/<owner>/larp-launcher/actions)
 [![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-purple.svg)](https://kotlinlang.org)
 [![Min SDK](https://img.shields.io/badge/Min%20SDK-26%20(Android%208.0)-green.svg)](https://developer.android.com/about/versions/oreo)
