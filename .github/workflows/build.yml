@@ -1,11 +1,6 @@
 name: Build
 
 on:
-  push:
-    branches: [ main, develop ]
-    tags: [ 'v*' ]
-  pull_request:
-    branches: [ main, develop ]
   workflow_dispatch:
     inputs:
       buildType:
@@ -35,17 +30,20 @@ permissions:
   contents: write
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.inputs.flavor || 'stable' }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.flavor }}
   cancel-in-progress: true
 
 jobs:
   build:
-    name: Build ${{ github.event.inputs.flavor || 'stable' }} (${{ github.event.inputs.buildType || 'debug' }})
+    name: Build ${{ inputs.flavor }} (${{ inputs.buildType }})
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
 
       - uses: actions/setup-java@v4
         with:
@@ -56,7 +54,7 @@ jobs:
         with:
           gradle-version: '8.10.2'
 
-      - name: Install xz-utils (for Frida gadget decompression)
+      - name: Install xz-utils
         run: sudo apt-get update -qq && sudo apt-get install -y -qq xz-utils
 
       - name: Setup Android SDK
@@ -64,46 +62,41 @@ jobs:
         with:
           packages: 'platforms;android-35 build-tools;35.0.0 ndk;27.2.12479018'
 
-      - name: Compute flavor capitalization
-        id: fv
+      - name: Resolve build parameters
+        id: cfg
+        env:
+          INPUT_FLAVOR: ${{ inputs.flavor }}
+          INPUT_TYPE: ${{ inputs.buildType }}
         run: |
-          f="${{ github.event.inputs.flavor || 'stable' }}"
-          cap="$(echo "$f" | awk '{print toupper(substr($0,1,1))substr($0,2)}')"
-          echo "flavor_cap=$cap" >> "$GITHUB_OUTPUT"
-          echo "flavor=$f" >> "$GITHUB_OUTPUT"
+          flavor_cap="$(echo "$INPUT_FLAVOR" | awk '{print toupper(substr($0,1,1))substr($0,2)}')"
+          type_cap="$(echo "$INPUT_TYPE" | awk '{print toupper(substr($0,1,1))substr($0,2)}')"
+          echo "flavor=$INPUT_FLAVOR" >> "$GITHUB_OUTPUT"
+          echo "flavor_cap=$flavor_cap" >> "$GITHUB_OUTPUT"
+          echo "type=$INPUT_TYPE" >> "$GITHUB_OUTPUT"
+          echo "type_cap=$type_cap" >> "$GITHUB_OUTPUT"
 
-      - name: Compute build type capitalization
-        id: bt
-        run: |
-          t="${{ github.event.inputs.buildType || 'debug' }}"
-          cap="$(echo "$t" | awk '{print toupper(substr($0,1,1))substr($0,2)}')"
-          echo "type_cap=$cap" >> "$GITHUB_OUTPUT"
-          echo "type=$t" >> "$GITHUB_OUTPUT"
-
-      - name: Assemble APK (downloads Frida gadget automatically)
+      - name: Assemble APK
         env:
           LARP_VERSION_CODE: ${{ github.run_number }}
-          LARP_VERSION_NAME: ${{ github.event.release.tag_name || '0.1.0' }}
+          LARP_VERSION_NAME: 1.0.${{ github.run_number }}
           LARP_GIT_SHA: ${{ github.sha }}
-        run: ./gradlew :app:assemble${{ steps.fv.outputs.flavor_cap }}${{ steps.bt.outputs.type_cap }} --stacktrace
+        run: ./gradlew :app:assemble${{ steps.cfg.outputs.flavor_cap }}${{ steps.cfg.outputs.type_cap }} --stacktrace
 
       - name: Run unit tests
-        if: github.event.inputs.buildType != 'release'
-        run: ./gradlew :app:test${{ steps.fv.outputs.flavor_cap }}${{ steps.bt.outputs.type_cap }}UnitTest --stacktrace || true
+        if: inputs.buildType != 'release'
+        run: ./gradlew :app:test${{ steps.cfg.outputs.flavor_cap }}${{ steps.cfg.outputs.type_cap }}UnitTest --stacktrace || true
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: larp-launcher-${{ steps.fv.outputs.flavor }}-${{ steps.bt.outputs.type }}
-          path: app/build/outputs/apk/${{ steps.fv.outputs.flavor }}/${{ steps.bt.outputs.type }}/*.apk
+          name: larp-launcher-${{ steps.cfg.outputs.flavor }}-${{ steps.cfg.outputs.type }}
+          path: app/build/outputs/apk/${{ steps.cfg.outputs.flavor }}/${{ steps.cfg.outputs.type }}/*.apk
           if-no-files-found: warn
           retention-days: 30
 
   release:
     name: Release
-    if: |
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.createRelease == 'true' && github.event.inputs.buildType == 'release')
-      || startsWith(github.ref, 'refs/tags/v')
+    if: inputs.createRelease == true && inputs.buildType == 'release'
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -114,26 +107,14 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - name: Compute tag
-        id: tag
-        run: |
-          if [ -n "${{ github.event.release.tag_name }}" ]; then
-            echo "name=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event.inputs.createRelease }}" = "true" ]; then
-            echo "name=v1.0.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
-          else
-            tag="${GITHUB_REF#refs/tags/}"
-            echo "name=$tag" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.tag.outputs.name }}
-          name: Larp Launcher ${{ steps.tag.outputs.name }}
+          tag_name: v1.0.${{ github.run_number }}
+          name: Larp Launcher v1.0.${{ github.run_number }}
           files: dist/**/*.apk
           generate_release_notes: true
           draft: false
-          prerelease: ${{ contains(steps.tag.outputs.name, '-rc') || contains(steps.tag.outputs.name, '-preview') || contains(steps.tag.outputs.name, '-canary') }}
+          prerelease: ${{ inputs.flavor != 'stable' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
