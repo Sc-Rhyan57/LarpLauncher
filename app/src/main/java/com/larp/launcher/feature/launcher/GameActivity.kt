@@ -25,17 +25,22 @@ import com.larp.launcher.diagnostics.Diario
 import com.larp.launcher.patcher.GameContext
 import com.larp.launcher.patcher.GameEnv
 import com.larp.launcher.patcher.ModRuntime
-import dagger.hilt.android.AndroidEntryPoint
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.runBlocking
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Proxy
 import java.util.Locale
-import javax.inject.Inject
 
-@AndroidEntryPoint
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface GameActivityEntryPoint {
+    fun modRuntime(): ModRuntime
+}
+
 class GameActivity : Activity() {
-
-    @Inject lateinit var modRuntime: ModRuntime
 
     private var env: GameEnv? = null
     private var appContext: GameContext? = null
@@ -111,6 +116,7 @@ class GameActivity : Activity() {
                 sourceDir = env.appInfo.sourceDir ?: "",
                 isInstalled = true
             )
+            val modRuntime = EntryPointAccessors.fromApplication(application, GameActivityEntryPoint::class.java).modRuntime()
             val ok = runBlocking { modRuntime.prepare(domainEnv, privateMods) }
             if (ok) {
                 Boot.load("fusion")
