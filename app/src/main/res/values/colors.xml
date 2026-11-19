@@ -1,0 +1,32 @@
+<resources>
+    <color name="larp_seed">#FF6F61</color>
+    <color name="larp_primary">#7E5260</color>
+    <color name="larp_on_primary">#FFFFFF</color>
+    <color name="larp_primary_container">#FFD9DD</color>
+    <color name="larp_on_primary_container">#31101D</color>
+    <color name="larp_secondary">#775656</color>
+    <color name="larp_on_secondary">#FFFFFF</color>
+    <color name="larp_secondary_container">#FFD9DD</color>
+    <color name="larp_on_secondary_container">#2C1513</color>
+    <color name="larp_tertiary">#7C5800</color>
+    <color name="larp_on_tertiary">#FFFFFF</color>
+    <color name="larp_tertiary_container">#FFDEA8</color>
+    <color name="larp_on_tertiary_container">#271900</color>
+    <color name="larp_error">#BA1A1A</color>
+    <color name="larp_on_error">#FFFFFF</color>
+    <color name="larp_error_container">#FFDAD6</color>
+    <color name="larp_on_error_container">#410002</color>
+    <color name="larp_background">#FFFBFF</color>
+    <color name="larp_on_background">#201A1B</color>
+    <color name="larp_surface">#FFFBFF</color>
+    <color name="larp_on_surface">#201A1B</color>
+    <color name="larp_surface_variant">#F3DDDE</color>
+    <color name="larp_on_surface_variant">#524344</color>
+    <color name="larp_outline">#847373</color>
+    <color name="larp_outline_variant">#D7C0C1</color>
+    <color name="larp_inverse_surface">#362F2F</color>
+    <color name="larp_inverse_on_surface">#FBEEEF</color>
+    <color name="larp_inverse_primary">#F4B3BB</color>
+    <color name="larp_surface_container_high">#EFE7E7</color>
+    <color name="larp_surface_container_highest">#F9F1F1</color>
+</resources>

@@ -1,0 +1,97 @@
+<resources>
+    <string name="app_name">Larp Launcher</string>
+    <string name="app_tagline">Open-source game patching</string>
+
+    <string name="nav_launcher">Início</string>
+    <string name="nav_mods">Mods</string>
+    <string name="nav_my_mods">Meus Mods</string>
+    <string name="nav_rooms">Salas</string>
+    <string name="nav_mural">Mural</string>
+    <string name="nav_broadcast">Broadcast</string>
+    <string name="nav_voice">Voz</string>
+    <string name="nav_malum">Malum</string>
+    <string name="nav_settings">Ajustes</string>
+
+    <string name="auth_login_discord">Entrar com Discord</string>
+    <string name="auth_logout">Sair</string>
+    <string name="auth_expired">Sessão expirada. Faça login novamente.</string>
+
+    <string name="mods_title">Mods do servidor</string>
+    <string name="mods_empty">Nenhum mod disponível</string>
+    <string name="mods_install">Instalar</string>
+    <string name="mods_installed">Instalado</string>
+    <string name="mods_uninstall">Remover</string>
+    <string name="mods_syncing">Sincronizando…</string>
+
+    <string name="my_mods_title">Meus mods</string>
+    <string name="my_mods_empty">Toque em \"+\" para adicionar uma DLL</string>
+    <string name="my_mods_add">Adicionar DLL</string>
+    <string name="my_mods_pick_dll">Selecionar DLL</string>
+    <string name="my_mods_pick_cover">Escolher capa</string>
+    <string name="my_mods_save">Salvar</string>
+    <string name="my_mods_delete">Excluir</string>
+    <string name="my_mods_name">Nome do mod</string>
+    <string name="my_mods_description">Descrição</string>
+    <string name="my_mods_author">Autor</string>
+    <string name="my_mods_version">Versão</string>
+
+    <string name="rooms_title">Salas ativas</string>
+    <string name="rooms_create">Criar sala</string>
+    <string name="rooms_join">Entrar</string>
+    <string name="rooms_leave">Sair</string>
+    <string name="rooms_empty">Nenhuma sala ativa. Crie uma!</string>
+    <string name="rooms_name">Nome da sala</string>
+    <string name="rooms_mods">Mods da sala</string>
+    <string name="rooms_players">Jogadores</string>
+
+    <string name="mural_title">Mural de avisos</string>
+    <string name="mural_empty">Nenhum aviso publicado</string>
+    <string name="mural_publish">Publicar aviso</string>
+    <string name="mural_admin_only">Somente ADMs podem publicar</string>
+
+    <string name="broadcast_title">Broadcast ADM</string>
+    <string name="broadcast_send">Enviar para todos</string>
+    <string name="broadcast_hint">Mensagem para todos os jogadores online</string>
+    <string name="broadcast_admin_only">Somente ADMs podem enviar broadcast</string>
+
+    <string name="voice_title">Chat de voz</string>
+    <string name="voice_connect">Entrar na sala de voz</string>
+    <string name="voice_disconnect">Sair da voz</string>
+    <string name="voice_mute">Mudo</string>
+    <string name="voice_unmute">Ativar microfone</string>
+    <string name="voice_speaker">Alto-falante</string>
+    <string name="voice_participants">Participantes</string>
+
+    <string name="malum_title">Malum — Como rodar mods</string>
+    <string name="malum_step_1">1. Instale o jogo base</string>
+    <string name="malum_step_2">2. Conceda permissão de armazenamento</string>
+    <string name="malum_step_3">3. Selecione os mods em \"Mods\"</string>
+    <string name="malum_step_4">4. Toque em \"Iniciar jogo\"</string>
+    <string name="malum_step_5">5. Aguarde o BepInEx inicializar</string>
+    <string name="malum_step_6">6. Abra o menu in-game (geralmente LShift+F1)</string>
+    <string name="malum_warning">Use apenas mods autorizados pelo ADM do servidor</string>
+
+    <string name="settings_title">Ajustes</string>
+    <string name="settings_dynamic_color">Cor dinâmica (Material You)</string>
+    <string name="settings_dark_mode">Tema escuro</string>
+    <string name="settings_api_url">URL da API Cloudflare</string>
+    <string name="settings_about">Sobre</string>
+    <string name="settings_licenses">Licenças open source</string>
+    <string name="settings_clear_cache">Limpar cache de mods</string>
+
+    <string name="game_launch">Iniciar jogo</string>
+    <string name="game_not_installed">Jogo base não instalado</string>
+    <string name="game_preparing">Preparando ambiente…</string>
+
+    <string name="error_network">Falha de conexão. Tente novamente.</string>
+    <string name="error_unauthorized">Você precisa entrar novamente.</string>
+    <string name="error_generic">Algo deu errado</string>
+
+    <string name="permission_required">Permissão necessária</string>
+    <string name="permission_audio_rationale">O Larp precisa do microfone para o chat de voz dentro das salas.</string>
+    <string name="permission_storage_rationale">O Larp precisa de acesso ao armazenamento para selecionar DLLs de mods locais.</string>
+    <string name="permission_grant">Conceder</string>
+
+    <string name="voice_channel_name">Chat de voz Larp</string>
+    <string name="voice_channel_desc">Microfone ativo durante a chamada</string>
+</resources>

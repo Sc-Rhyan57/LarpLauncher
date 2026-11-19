@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <exclude domain="sharedpref" path="larp_auth.encrypted" />
+    <exclude domain="file" path="mods/cache" />
+    <exclude domain="file" path="mods/local" />
+</full-backup-content>

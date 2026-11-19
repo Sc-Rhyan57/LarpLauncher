@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="larp_auth.encrypted" />
+        <exclude domain="file" path="mods/cache" />
+        <exclude domain="file" path="mods/local" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="file" path="mods/local" />
+        <include domain="sharedpref" path="larp_settings.xml" />
+    </device-transfer>
+</data-extraction-rules>
