@@ -1,6 +1,7 @@
 package com.larp.launcher.core.di
 
 import android.content.Context
+import com.larp.launcher.core.LarpEnvProvider
 import com.larp.launcher.data.local.cache.ModCacheManager
 import com.larp.launcher.data.local.db.LarpDatabase
 import com.larp.launcher.data.local.prefs.AuthPrefs
@@ -42,4 +43,11 @@ object AppModule {
     @Provides
     @Singleton
     fun provideInstalledModDao(db: LarpDatabase) = db.installedModDao()
+
+    @Provides
+    @Singleton
+    fun provideLarpEnvProvider(
+        @ApplicationContext context: Context,
+        json: kotlinx.serialization.json.Json
+    ): LarpEnvProvider = LarpEnvProvider.get(context, json)
 }

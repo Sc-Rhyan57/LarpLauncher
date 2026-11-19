@@ -9,6 +9,7 @@ import androidx.navigation.navArgument
 import com.larp.launcher.feature.announcements.AnnouncementsScreen
 import com.larp.launcher.feature.auth.LoginScreen
 import com.larp.launcher.feature.broadcast.BroadcastScreen
+import com.larp.launcher.feature.frida.FridaScreen
 import com.larp.launcher.feature.launcher.LauncherScreen
 import com.larp.launcher.feature.malum.MalumScreen
 import com.larp.launcher.feature.mods.browser.ModsScreen
@@ -27,6 +28,7 @@ object Routes {
     const val BROADCAST = "broadcast"
     const val VOICE = "voice/{roomId}"
     const val MALUM = "malum"
+    const val FRIDA = "frida"
     const val SETTINGS = "settings"
 
     fun voice(roomId: String): String = "voice/$roomId"
@@ -59,6 +61,7 @@ fun LarpNavHost(
                         com.larp.launcher.feature.launcher.LarpDestination.Broadcast -> navController.navigate(Routes.BROADCAST)
                         com.larp.launcher.feature.launcher.LarpDestination.Voice -> navController.navigate(Routes.voice("lobby"))
                         com.larp.launcher.feature.launcher.LarpDestination.Malum -> navController.navigate(Routes.MALUM)
+                        com.larp.launcher.feature.launcher.LarpDestination.Frida -> navController.navigate(Routes.FRIDA)
                         com.larp.launcher.feature.launcher.LarpDestination.Settings -> navController.navigate(Routes.SETTINGS)
                     }
                 },
@@ -99,6 +102,10 @@ fun LarpNavHost(
 
         composable(Routes.MALUM) {
             MalumScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.FRIDA) {
+            FridaScreen(onBack = { navController.popBackStack() })
         }
 
         composable(Routes.SETTINGS) {

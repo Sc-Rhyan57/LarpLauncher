@@ -1,7 +1,7 @@
 package com.larp.launcher.data.repository
 
 import android.content.Context
-import android.content.pm.PackageManager
+import com.larp.launcher.core.LarpEnvProvider
 import com.larp.launcher.domain.model.GameEnv
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -10,10 +10,11 @@ import javax.inject.Singleton
 
 @Singleton
 class GameEnvRepository @Inject constructor(
-    private val context: Context
+    private val context: Context,
+    private val envProvider: LarpEnvProvider
 ) {
 
-    suspend fun detect(targetPackage: String = DEFAULT_GAME_PACKAGE): GameEnv = withContext(Dispatchers.IO) {
+    suspend fun detect(targetPackage: String = envProvider.current().gamePackage): GameEnv = withContext(Dispatchers.IO) {
         val pm = context.packageManager
         val installed = runCatching { pm.getPackageInfo(targetPackage, 0) }.isSuccess
         if (!installed) {
@@ -37,9 +38,5 @@ class GameEnvRepository @Inject constructor(
             isInstalled = true,
             isExternal = (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_EXTERNAL_STORAGE) != 0
         )
-    }
-
-    companion object {
-        const val DEFAULT_GAME_PACKAGE = "com.regis.game"
     }
 }

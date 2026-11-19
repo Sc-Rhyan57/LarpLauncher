@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.PlayArrow
 import androidx.compose.material.icons.filled.Campaign
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.MenuBook
@@ -73,6 +74,7 @@ fun LauncherScreen(
         QuickAccess(LarpDestination.Mural, "Mural", Icons.Filled.Campaign),
         QuickAccess(LarpDestination.Malum, "Malum", Icons.Filled.MenuBook),
         QuickAccess(LarpDestination.MyMods, "Meus Mods", Icons.Filled.Storage),
+        QuickAccess(LarpDestination.Frida, "Frida Mods", Icons.Filled.Code),
         QuickAccess(LarpDestination.Settings, "Ajustes", Icons.Filled.Settings)
     )
 

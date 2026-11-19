@@ -1,16 +1,16 @@
 package com.larp.launcher.patcher
 
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import com.larp.launcher.data.local.cache.ModCacheManager
 import com.larp.launcher.data.repository.GameEnvRepository
 import com.larp.launcher.domain.model.GameEnv
 import com.larp.launcher.domain.model.PatchProgress
+import com.larp.launcher.feature.launcher.GameActivity
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.Dispatchers
+import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -23,11 +23,11 @@ class GameLauncher @Inject constructor(
     private val cache: ModCacheManager
 ) {
 
-    fun launchWithMods(modIds: List<String>, privateBepInEx: Boolean = true): Flow<PatchProgress> = flow {
+    fun launchWithMods(modIds: List<String>, privateBepInEx: Boolean = true, gamePackage: String = GameActivity.DEFAULT_GAME_PACKAGE): Flow<PatchProgress> = flow {
         emit(PatchProgress(PatchProgress.Stage.Downloading, "Iniciando sincronização…", 0f))
-        val env = gameEnvRepo.detect()
+        val env = gameEnvRepo.detect(gamePackage)
         if (!env.isInstalled) {
-            emit(PatchProgress(PatchProgress.Stage.Failed, "Jogo base não instalado", 0f, IllegalStateException("Jogo não instalado")))
+            emit(PatchProgress(PatchProgress.Stage.Failed, "Jogo base não instalado", 0f, IllegalStateException("Jogo não instalado: $gamePackage")))
             return@flow
         }
         try {
@@ -37,49 +37,62 @@ class GameLauncher @Inject constructor(
                 emit(PatchProgress(stage, msg, progress))
             }
             emit(PatchProgress(PatchProgress.Stage.Preparing, "Preparando runtime .NET…", 0f))
-            val ok = modRuntime.prepare(env, privateBepInEx)
-            if (!ok) {
-                emit(PatchProgress(PatchProgress.Stage.Failed, "Runtime não encontrado no APK", 0f, IllegalStateException("Runtime ausente")))
-                return@flow
-            }
-            emit(PatchProgress(PatchProgress.Stage.Ready, "Abrindo jogo…", 1f))
-            startGame(env)
+            NativeLibsInstaller.ensureInstalled(context)
+            emit(PatchProgress(PatchProgress.Stage.Ready, "Abrindo jogo com injeção…", 1f))
+            startGame(env, privateBepInEx)
         } catch (t: Throwable) {
             emit(PatchProgress(PatchProgress.Stage.Failed, t.message ?: "Erro", 0f, t))
         }
     }.flowOn(Dispatchers.IO)
 
-    fun launchLocalMods(dllPaths: List<String>, privateBepInEx: Boolean = true): Flow<PatchProgress> = flow {
-        val env = gameEnvRepo.detect()
+    fun launchLocalMods(dllPaths: List<String>, privateBepInEx: Boolean = true, gamePackage: String = GameActivity.DEFAULT_GAME_PACKAGE): Flow<PatchProgress> = flow {
+        val env = gameEnvRepo.detect(gamePackage)
         if (!env.isInstalled) {
-            emit(PatchProgress(PatchProgress.Stage.Failed, "Jogo base não instalado", 0f, IllegalStateException("Jogo não instalado")))
+            emit(PatchProgress(PatchProgress.Stage.Failed, "Jogo base não instalado", 0f, IllegalStateException("Jogo não instalado: $gamePackage")))
             return@flow
         }
         try {
             emit(PatchProgress(PatchProgress.Stage.Installing, "Copiando DLLs locais…", 0f))
             val plugins = cache.bepinexPluginsDir().apply { mkdirs() }
             dllPaths.forEach { src ->
-                val file = java.io.File(src)
-                if (file.isFile) file.copyTo(java.io.File(plugins, file.name), overwrite = true)
+                val file = File(src)
+                if (file.isFile) file.copyTo(File(plugins, file.name), overwrite = true)
             }
             emit(PatchProgress(PatchProgress.Stage.Preparing, "Preparando runtime .NET…", 0f))
-            modRuntime.prepare(env, privateBepInEx)
-            emit(PatchProgress(PatchProgress.Stage.Ready, "Abrindo jogo…", 1f))
-            startGame(env)
+            NativeLibsInstaller.ensureInstalled(context)
+            emit(PatchProgress(PatchProgress.Stage.Ready, "Abrindo jogo com injeção…", 1f))
+            startGame(env, privateBepInEx)
         } catch (t: Throwable) {
             emit(PatchProgress(PatchProgress.Stage.Failed, t.message ?: "Erro", 0f, t))
         }
     }.flowOn(Dispatchers.IO)
 
-    private fun startGame(env: GameEnv) {
-        val intent = context.packageManager.getLaunchIntentForPackage(env.packageName)
-        if (intent != null) {
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            context.startActivity(intent)
-        } else {
-            val market = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=${env.packageName}"))
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            runCatching { context.startActivity(market) }
+    fun launchFridaAgent(agentJsPath: String, gamePackage: String = GameActivity.DEFAULT_GAME_PACKAGE): Flow<PatchProgress> = flow {
+        val env = gameEnvRepo.detect(gamePackage)
+        if (!env.isInstalled) {
+            emit(PatchProgress(PatchProgress.Stage.Failed, "Jogo base não instalado", 0f, IllegalStateException("Jogo não instalado: $gamePackage")))
+            return@flow
         }
+        try {
+            emit(PatchProgress(PatchProgress.Stage.Installing, "Instalando Frida gadget…", 0f))
+            val nativeDir = NativeLibsInstaller.ensureInstalled(context)
+            val gadget = File(nativeDir, "libfrida-gadget.so").takeIf { it.isFile }
+                ?: throw IllegalStateException("libfrida-gadget.so não bundled no APK")
+            val agent = File(agentJsPath)
+            val config = File(context.filesDir, "frida/libfrida-gadget.config.so").takeIf { it.isFile }
+            NativeLibsInstaller.installFridaGadget(context, gadget, agent, config)
+            emit(PatchProgress(PatchProgress.Stage.Preparing, "Preparando runtime…", 0f))
+            modRuntime.prepare(env, privateBepInEx = false)
+            emit(PatchProgress(PatchProgress.Stage.Ready, "Abrindo jogo com Frida…", 1f))
+            startGame(env, privateBepInEx = false)
+        } catch (t: Throwable) {
+            emit(PatchProgress(PatchProgress.Stage.Failed, t.message ?: "Erro", 0f, t))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    private fun startGame(env: GameEnv, privateBepInEx: Boolean) {
+        GameEnvFactory.reset()
+        val intent = GameActivity.newIntent(context, env.packageName, privateBepInEx)
+        context.startActivity(intent)
     }
 }

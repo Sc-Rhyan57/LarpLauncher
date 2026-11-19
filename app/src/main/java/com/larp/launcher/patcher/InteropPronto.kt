@@ -2,6 +2,7 @@ package com.larp.launcher.patcher
 
 import android.content.Context
 import android.util.Log
+import com.larp.launcher.core.LarpEnvProvider
 import com.larp.launcher.data.local.cache.ModCacheManager
 import com.larp.launcher.data.remote.api.LarpApi
 import com.larp.launcher.data.remote.dto.ModTicketDto
@@ -21,13 +22,14 @@ class InteropPronto @Inject constructor(
     private val api: LarpApi,
     private val cache: ModCacheManager,
     private val httpClient: OkHttpClient,
-    private val hashDoInterop: HashDoInterop
+    private val hashDoInterop: HashDoInterop,
+    private val envProvider: LarpEnvProvider
 ) {
 
     suspend fun preparar(listener: ModSync.Listener) = withContext(Dispatchers.IO) {
         try {
             val pm = context.packageManager
-            val pkgInfo = pm.getPackageInfo(GAME_PACKAGE, 0)
+            val pkgInfo = pm.getPackageInfo(envProvider.current().gamePackage, 0)
             val versionCode = if (android.os.Build.VERSION.SDK_INT >= 28) pkgInfo.longVersionCode else pkgInfo.versionCode.toLong()
             val libil2cpp = File(pkgInfo.applicationInfo.nativeLibraryDir, "libil2cpp.so")
             val bepinexDir = cache.bepinexDir()
@@ -146,6 +148,5 @@ class InteropPronto @Inject constructor(
     companion object {
         private const val TAG = "LarpLauncher"
         private const val MARCA = ".larp-interop"
-        const val GAME_PACKAGE = "com.innersloth.spacemafia"
     }
 }

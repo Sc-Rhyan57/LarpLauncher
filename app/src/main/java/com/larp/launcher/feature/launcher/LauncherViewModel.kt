@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 enum class LarpDestination {
-    Mods, MyMods, Rooms, Mural, Broadcast, Voice, Malum, Settings
+    Mods, MyMods, Rooms, Mural, Broadcast, Voice, Malum, Frida, Settings
 }
 
 data class LauncherUiState(

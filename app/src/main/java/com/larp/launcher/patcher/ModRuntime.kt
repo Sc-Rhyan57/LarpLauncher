@@ -3,6 +3,7 @@ package com.larp.launcher.patcher
 import android.content.Context
 import android.system.Os
 import android.util.Log
+import com.larp.launcher.core.LarpEnvProvider
 import com.larp.launcher.data.local.cache.ModCacheManager
 import com.larp.launcher.domain.model.GameEnv
 import kotlinx.coroutines.Dispatchers
@@ -19,7 +20,8 @@ import javax.inject.Singleton
 @Singleton
 class ModRuntime @Inject constructor(
     private val context: Context,
-    private val cache: ModCacheManager
+    private val cache: ModCacheManager,
+    private val envProvider: LarpEnvProvider
 ) {
 
     private val prefs by lazy { context.getSharedPreferences("larp_runtime", Context.MODE_PRIVATE) }
@@ -40,7 +42,7 @@ class ModRuntime @Inject constructor(
         }
 
         val gameLastUpdate = runCatching {
-            context.packageManager.getPackageInfo(InteropPronto.GAME_PACKAGE, 0).lastUpdateTime
+            context.packageManager.getPackageInfo(envProvider.current().gamePackage, 0).lastUpdateTime
         }.getOrDefault(0L)
 
         if (prefs.getInt(KEY_BUNDLE_VERSION, 0) != BUNDLE_VERSION || !File(dotnetDir, "System.Private.CoreLib.dll").isFile) {

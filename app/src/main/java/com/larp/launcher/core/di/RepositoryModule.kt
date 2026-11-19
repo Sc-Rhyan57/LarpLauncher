@@ -1,5 +1,6 @@
 package com.larp.launcher.core.di
 
+import com.larp.launcher.core.LarpEnvProvider
 import com.larp.launcher.data.repository.AnnouncementsRepository
 import com.larp.launcher.data.repository.AuthRepository
 import com.larp.launcher.data.repository.BroadcastRepository
@@ -48,8 +49,10 @@ object RepositoryModule {
     fun provideVoiceRepository(api: com.larp.launcher.data.remote.api.LarpApi): VoiceRepository = VoiceRepository(api)
 
     @Provides @Singleton
-    fun provideGameEnvRepository(@dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context): GameEnvRepository =
-        GameEnvRepository(context)
+    fun provideGameEnvRepository(
+        @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context,
+        envProvider: LarpEnvProvider
+    ): GameEnvRepository = GameEnvRepository(context, envProvider)
 
     @Provides @Singleton
     fun provideHashDoInterop(): HashDoInterop = HashDoInterop()
@@ -60,8 +63,9 @@ object RepositoryModule {
         api: com.larp.launcher.data.remote.api.LarpApi,
         cache: com.larp.launcher.data.local.cache.ModCacheManager,
         httpClient: okhttp3.OkHttpClient,
-        hashDoInterop: HashDoInterop
-    ): InteropPronto = InteropPronto(context, api, cache, httpClient, hashDoInterop)
+        hashDoInterop: HashDoInterop,
+        envProvider: LarpEnvProvider
+    ): InteropPronto = InteropPronto(context, api, cache, httpClient, hashDoInterop, envProvider)
 
     @Provides @Singleton
     fun provideModSync(
@@ -75,8 +79,9 @@ object RepositoryModule {
     @Provides @Singleton
     fun provideModRuntime(
         @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context,
-        cache: com.larp.launcher.data.local.cache.ModCacheManager
-    ): ModRuntime = ModRuntime(context, cache)
+        cache: com.larp.launcher.data.local.cache.ModCacheManager,
+        envProvider: LarpEnvProvider
+    ): ModRuntime = ModRuntime(context, cache, envProvider)
 
     @Provides @Singleton
     fun provideGameLauncher(
@@ -86,4 +91,11 @@ object RepositoryModule {
         modSync: ModSync,
         cache: com.larp.launcher.data.local.cache.ModCacheManager
     ): GameLauncher = GameLauncher(context, gameEnvRepo, modRuntime, modSync, cache)
+
+    @Provides @Singleton
+    fun provideFridaInjector(
+        @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context,
+        cache: com.larp.launcher.data.local.cache.ModCacheManager
+    ): com.larp.launcher.patcher.frida.FridaInjector =
+        com.larp.launcher.patcher.frida.FridaInjector(context, cache)
 }

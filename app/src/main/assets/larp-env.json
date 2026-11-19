@@ -1,0 +1,15 @@
+{
+  "apiUrl": "https://larp-api.workers.dev",
+  "wsUrl": "wss://larp-api.workers.dev",
+  "discordClientId": "",
+  "discordRedirectUri": "com.larp.launcher://oauth",
+  "discordScope": "identify email guilds",
+  "webrtcIceServers": ["stun:stun.larp.workers.dev:3478"],
+  "turnUrl": "",
+  "turnUser": "",
+  "turnCredential": "",
+  "gamePackage": "com.innersloth.spacemafia",
+  "fridaGadgetBundled": true,
+  "sentryDsn": "",
+  "fcmSenderId": ""
+}

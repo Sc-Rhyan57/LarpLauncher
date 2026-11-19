@@ -1,5 +1,6 @@
 package com.larp.launcher.data.remote.websocket
 
+import com.larp.launcher.core.LarpEnvProvider
 import com.larp.launcher.data.remote.dto.AnnouncementDto
 import com.larp.launcher.data.remote.dto.BroadcastDto
 import com.larp.launcher.data.remote.dto.RoomEventDto
@@ -38,14 +39,14 @@ sealed interface LarpRealtimeEvent {
 @Singleton
 class LarpRealtimeClient @Inject constructor(
     private val httpClient: OkHttpClient,
-    private val json: Json
+    private val json: Json,
+    private val envProvider: LarpEnvProvider
 ) {
 
-    fun connect(baseUrl: String, token: String): Flow<LarpRealtimeEvent> = callbackFlow {
-        val wsUrl = baseUrl
-            .replaceFirst("http://", "ws://")
-            .replaceFirst("https://", "wss://")
-            .trimEnd('/') + "/realtime?token=$token"
+    fun connect(token: String): Flow<LarpRealtimeEvent> = callbackFlow {
+        val env = envProvider.current()
+        val wsBase = env.wsUrl.trimEnd('/').ifBlank { env.apiUrl.trimEnd('/').replaceFirst("http://", "ws://").replaceFirst("https://", "wss://") }
+        val wsUrl = "$wsBase/realtime?token=$token"
 
         val request = Request.Builder()
             .url(wsUrl)
@@ -131,9 +132,5 @@ class LarpRealtimeClient @Inject constructor(
         awaitClose {
             webSocket?.cancel()
         }
-    }
-
-    fun send(baseUrl: String, token: String, message: String): Boolean {
-        return false
     }
 }

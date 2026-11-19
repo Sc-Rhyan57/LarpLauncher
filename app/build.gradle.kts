@@ -8,6 +8,14 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
+fun envOrProp(name: String, default: String): String {
+    val prop = project.findProperty(name) as String?
+    if (!prop.isNullOrBlank()) return prop
+    val env = System.getenv(name)
+    if (!env.isNullOrBlank()) return env
+    return default
+}
+
 android {
     namespace = "com.larp.launcher"
     compileSdk = 35
@@ -16,22 +24,25 @@ android {
         applicationId = "com.larp.launcher"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = envOrProp("LARP_VERSION_CODE", "1").toIntOrNull() ?: 1
+        versionName = envOrProp("LARP_VERSION_NAME", "0.1.0")
         vectorDrawables.useSupportLibrary = true
-        buildConfigField("String", "API_BASE_URL", "\"https://larp-api.workers.dev\"")
-        buildConfigField("String", "DISCORD_CLIENT_ID", "\"\"")
-        buildConfigField("String", "DISCORD_REDIRECT_URI", "\"com.larp.launcher://oauth\"")
-        buildConfigField("String", "DISCORD_SCOPE", "\"identify email guilds\"")
-        buildConfigField("String", "WEBRTC_ICE_SERVER", "\"stun:stun.larp.workers.dev:3478\"")
-        resValue("string", "larp_host", "larp-api.workers.dev")
+
+        buildConfigField("String", "APP_VERSION_NAME", "\"${envOrProp("LARP_VERSION_NAME", "0.1.0")}\"")
+        buildConfigField("String", "GIT_SHA", "\"${envOrProp("LARP_GIT_SHA", "local")}\"")
+        buildConfigField("long", "BUILD_TIMESTAMP", System.currentTimeMillis().toString())
+        buildConfigField("boolean", "FRIDA_GADGET_BUNDLED", "true")
+
+        resValue("string", "larp_host", envOrProp("LARP_API_HOST", "larp-api.workers.dev"))
+
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
     }
 
     flavorDimensions += "channel"
     productFlavors {
-        create("stable") {
-            dimension = "channel"
-        }
+        create("stable") { dimension = "channel" }
         create("preview") {
             dimension = "channel"
             applicationIdSuffix = ".preview"
@@ -81,7 +92,23 @@ android {
         buildConfig = true
     }
 
+    sourceSets {
+        getByName("main") {
+            jniLibs.srcDirs("src/main/jniLibs")
+            assets.srcDirs("src/main/assets")
+        }
+    }
+
     packaging {
+        jniLibs {
+            useLegacyPackaging = false
+            pickFirsts += setOf(
+                "lib/*/libcrypto.so",
+                "lib/*/libssl.so",
+                "lib/*/libcoreclr.so",
+                "lib/*/libclrjit.so"
+            )
+        }
         resources.excludes += setOf(
             "/META-INF/{AL2.0,LGPL2.1}",
             "/META-INF/INDEX.LIST",
@@ -95,6 +122,66 @@ android {
     testOptions {
         unitTests.all { it.useJUnitPlatform() }
     }
+}
+
+tasks.register("downloadFridaGadget") {
+    group = "larp"
+    description = "Baixa libfrida-gadget.so do GitHub Releases da Frida para app/src/main/jniLibs/"
+    doLast {
+        val version = envOrProp("larpFridaVersion", "17.2.1")
+        val archs = listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        val jniDir = file("src/main/jniLibs")
+        jniDir.mkdirs()
+        archs.forEach { arch ->
+            val target = file("$jniDir/$arch/libfrida-gadget.so")
+            if (target.isFile && target.length() > 1_000_000) {
+                logger.lifecycle("[frida] $arch já existe (${target.length() / 1024} KB)")
+                return@forEach
+            }
+            target.parentFile.mkdirs()
+            val fridaArch = when (arch) {
+                "arm64-v8a" -> "android-arm64"
+                "armeabi-v7a" -> "android-arm"
+                "x86_64" -> "android-x86_64"
+                else -> arch
+            }
+            val assetName = "frida-gadget-$version-$fridaArch.so.xz"
+            val url = "https://github.com/frida/frida/releases/download/$version/$assetName"
+            logger.lifecycle("[frida] baixando $assetName de $url")
+            val tmpXz = file("$jniDir/$arch/libfrida-gadget.so.xz")
+            try {
+                java.net.URI(url).toURL().openStream().use { input ->
+                    tmpXz.outputStream().use { output -> input.copyTo(output, 64 * 1024) }
+                }
+                logger.lifecycle("[frida] descompactando ${tmpXz.length() / 1024} KB")
+                decompressXz(tmpXz, target)
+                target.setReadOnly()
+                logger.lifecycle("[frida] $arch instalado (${target.length() / 1024} KB)")
+            } catch (t: Throwable) {
+                logger.warn("[frida] falhou para $arch: ${t.message}")
+                target.delete()
+                if (arch == "arm64-v8a") throw t
+            } finally {
+                tmpXz.delete()
+            }
+        }
+    }
+}
+
+fun decompressXz(input: java.io.File, output: java.io.File) {
+    val process = ProcessBuilder("xz", "-d", "-c", input.absolutePath)
+        .redirectOutput(ProcessBuilder.Redirect.PIPE)
+        .redirectError(ProcessBuilder.Redirect.INHERIT)
+        .start()
+    output.outputStream().use { out ->
+        process.inputStream.use { it.copyTo(out, 64 * 1024) }
+    }
+    val code = process.waitFor()
+    if (code != 0) throw IllegalStateException("xz falhou (código $code). Instale xz-utils.")
+}
+
+android.applicationVariants.configureEach {
+    preBuildProvider.get().dependsOn("downloadFridaGadget")
 }
 
 dependencies {

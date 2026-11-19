@@ -30,6 +30,8 @@
             <action android:name="android.intent.action.MAIN" />
         </intent>
         <package android:name="com.discord" />
+        <package android:name="com.innersloth.spacemafia" />
+        <package android:name="com.innersloth.amongus" />
     </queries>
 
     <application
@@ -65,6 +67,14 @@
                 <data android:scheme="com.larp.launcher" android:host="oauth" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".feature.launcher.GameActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode|density"
+            android:theme="@style/Theme.Larp.Launcher"
+            android:process=":game" />
 
         <service
             android:name=".feature.voice.VoiceCallService"

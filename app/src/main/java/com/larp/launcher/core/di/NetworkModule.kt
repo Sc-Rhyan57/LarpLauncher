@@ -1,19 +1,23 @@
 package com.larp.launcher.core.di
 
-import com.larp.launcher.BuildConfig
+import com.larp.launcher.core.LarpEnvProvider
 import com.larp.launcher.data.remote.api.LarpApi
+import com.larp.launcher.data.remote.websocket.LarpRealtimeClient
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.Response
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.util.concurrent.TimeUnit
-import javax.inject.Named
 import javax.inject.Singleton
 
 @Module
@@ -31,35 +35,60 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideOkHttp(): OkHttpClient {
+    fun provideBaseUrlInterceptor(envProvider: LarpEnvProvider): BaseUrlInterceptor =
+        BaseUrlInterceptor(envProvider)
+
+    @Provides
+    @Singleton
+    fun provideOkHttp(baseUrlInterceptor: BaseUrlInterceptor): OkHttpClient {
         val logger = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC }
         return OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(60, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
+            .addInterceptor(baseUrlInterceptor)
             .addInterceptor(logger)
+            .pingInterval(30, TimeUnit.SECONDS)
             .build()
     }
 
     @Provides
     @Singleton
-    @Named("apiUrl")
-    fun provideApiUrl(): String = BuildConfig.API_BASE_URL.trimEnd('/')
-
-    @Provides
-    @Singleton
     fun provideLarpApi(
         client: OkHttpClient,
-        json: Json,
-        @Named("apiUrl") baseUrl: String
+        json: Json
     ): LarpApi {
         val contentType = "application/json".toMediaType()
         return Retrofit.Builder()
-            .baseUrl("$baseUrl/")
+            .baseUrl("https://larp-api.placeholder.workers.dev/")
             .client(client)
             .addConverterFactory(json.asConverterFactory(contentType))
             .build()
             .create(LarpApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideRealtimeClient(
+        client: OkHttpClient,
+        json: Json
+    ): LarpRealtimeClient = LarpRealtimeClient(client, json)
+}
+
+class BaseUrlInterceptor(private val envProvider: LarpEnvProvider) : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): Response {
+        val original = chain.request()
+        val env = envProvider.current()
+        val newBaseUrl = env.apiUrl.trimEnd('/').toHttpUrlOrNull() ?: return chain.proceed(original)
+        if (original.url.host == "larp-api.placeholder.workers.dev") {
+            val newUrl = original.url.newBuilder()
+                .scheme(newBaseUrl.scheme)
+                .host(newBaseUrl.host)
+                .port(newBaseUrl.port)
+                .build()
+            return chain.proceed(original.newBuilder().url(newUrl).build())
+        }
+        return chain.proceed(original)
     }
 }
