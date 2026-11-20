@@ -4,11 +4,13 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.larp.launcher.OverlayPermissionHolder
+import com.larp.launcher.domain.model.DevKitEntry
 import com.larp.launcher.domain.model.DevKitSnapshot
 import com.larp.launcher.domain.model.DevKitVariable
 import com.larp.launcher.hook.LarpHookEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,6 +25,9 @@ data class DevKitUiState(
     val canDrawOverlays: Boolean = false,
     val shadowHookReady: Boolean = false,
     val byteHookReady: Boolean = false,
+    val catalogStatus: String = "",
+    val catalogQuery: String = "",
+    val catalogResults: List<DevKitEntry> = emptyList(),
     val isLoading: Boolean = true,
     val error: String? = null
 )
@@ -34,6 +39,8 @@ class DevKitViewModel @Inject constructor(
     private val devKitBridge: DevKitBridge,
     private val hookEngine: LarpHookEngine
 ) : ViewModel() {
+
+    private var searchJob: Job? = null
 
     private val _state = MutableStateFlow(DevKitUiState())
     val state: StateFlow<DevKitUiState> = _state.asStateFlow()
@@ -54,8 +61,11 @@ class DevKitViewModel @Inject constructor(
             val variables = devKitStore.loadVariables()
             val snapshot = devKitStore.loadSnapshot()
             hookEngine.ensureInitialized()
+            val results = devKitStore.searchCatalog(_state.value.catalogQuery, CATALOG_LIMIT)
             _state.update {
                 it.copy(
+                    catalogStatus = devKitStore.catalogStatus(),
+                    catalogResults = results,
                     variables = variables,
                     snapshot = snapshot,
                     devKitEnabled = DevKitOverlayService.isDevKitEnabled(context),
@@ -65,6 +75,32 @@ class DevKitViewModel @Inject constructor(
                     isLoading = false
                 )
             }
+        }
+    }
+
+    fun searchCatalog(query: String) {
+        _state.update { it.copy(catalogQuery = query) }
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            val results = devKitStore.searchCatalog(query, CATALOG_LIMIT)
+            _state.update { it.copy(catalogResults = results, catalogStatus = devKitStore.catalogStatus()) }
+        }
+    }
+
+    fun addFromCatalog(entry: DevKitEntry) {
+        if (entry.kind != 'M' || entry.address.isBlank()) return
+        viewModelScope.launch {
+            val variable = DevKitVariable(
+                id = devKitStore.newId(),
+                name = entry.title,
+                address = entry.address,
+                module = "libil2cpp.so",
+                size = 8,
+                format = "hex",
+                enabled = true
+            )
+            val updated = devKitStore.addVariable(variable)
+            _state.update { it.copy(variables = updated, error = null) }
         }
     }
 
@@ -134,16 +170,14 @@ class DevKitViewModel @Inject constructor(
     }
 
     fun takeSnapshotNow() {
-        viewModelScope.launch {
-            val variables = devKitStore.loadVariables()
-            val snapshot = devKitBridge.snapshot(variables, devKitStore.newId())
-            devKitStore.saveSnapshot(snapshot)
-            _state.update { it.copy(snapshot = snapshot) }
-        }
+        refresh()
     }
 
     fun clearError() {
         _state.update { it.copy(error = null) }
     }
-}
 
+    companion object {
+        private const val CATALOG_LIMIT = 100
+    }
+}

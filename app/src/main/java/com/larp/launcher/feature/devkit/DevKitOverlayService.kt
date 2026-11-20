@@ -49,6 +49,7 @@ class DevKitOverlayService : Service() {
 
     @Inject lateinit var devKitStore: DevKitStore
     @Inject lateinit var devKitBridge: DevKitBridge
+    @Inject lateinit var catalogExtractor: DevKitCatalogExtractor
     @Inject lateinit var json: Json
 
     private lateinit var windowManager: WindowManager
@@ -86,6 +87,9 @@ class DevKitOverlayService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_REFRESH) {
             scope.launch { refreshOnce() }
+        } else if (intent?.action == ACTION_EXTRACT) {
+            catalogExtractor.stop()
+            catalogExtractor.start(scope, true)
         } else if (intent?.action == ACTION_STOP) {
             stopSelf()
         }
@@ -94,6 +98,7 @@ class DevKitOverlayService : Service() {
 
     override fun onDestroy() {
         refreshJob?.cancel()
+        catalogExtractor.stop()
         runCatching { overlayView?.let { windowManager.removeView(it) } }
         overlayView = null
         scope.cancel()
@@ -104,6 +109,7 @@ class DevKitOverlayService : Service() {
         scope.launch {
             variables = devKitStore.loadVariables()
             handler.post { showOverlay() }
+            catalogExtractor.start(scope)
             startRefreshLoop()
         }
     }
@@ -192,6 +198,17 @@ class DevKitOverlayService : Service() {
                 scope.launch { refreshOnce() }
             }
         }
+        val extractBtn = TextView(this).apply {
+            text = "Extrair"
+            setTextColor(Color.parseColor("#FFFFA657"))
+            textSize = 10f
+            setPadding(8, 4, 8, 4)
+            setOnClickListener {
+                catalogExtractor.stop()
+                catalogExtractor.start(scope, true)
+            }
+        }
+        buttonRow.addView(extractBtn)
         buttonRow.addView(refreshBtn)
         buttonRow.addView(openBtn)
 
@@ -214,7 +231,7 @@ class DevKitOverlayService : Service() {
         val view = overlayView as? LinearLayout ?: return
         val body = view.getChildAt(1) as? TextView ?: return
         if (snapshot.values.isEmpty()) {
-            body.text = "Nenhuma variável.\nAdicione em Dev Kit no app."
+            body.text = "Nenhuma variável ativa.\nCatálogo: ${devKitStore.catalogStatus()}\nAbra o Dev Kit no app para buscar e adicionar."
             return
         }
         val sb = StringBuilder()
@@ -311,6 +328,7 @@ class DevKitOverlayService : Service() {
         private const val NOTIF_ID = 0xD0
         private const val REFRESH_INTERVAL_MS = 1000L
         private const val ACTION_REFRESH = "com.larp.launcher.devkit.REFRESH"
+        private const val ACTION_EXTRACT = "com.larp.launcher.devkit.EXTRACT"
         private const val ACTION_STOP = "com.larp.launcher.devkit.STOP"
         private val KEY_ENABLED = booleanPreferencesKey("devkit_enabled")
 

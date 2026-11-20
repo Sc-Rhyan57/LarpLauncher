@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.larp.launcher.core.design.components.LarpCard
+import com.larp.launcher.domain.model.DevKitEntry
 import com.larp.launcher.domain.model.DevKitSnapshotValue
 import com.larp.launcher.domain.model.DevKitVariable
 import kotlinx.coroutines.launch
@@ -153,6 +154,38 @@ fun DevKitScreen(
                         }
                     }
                 }
+            }
+
+            item {
+                LarpCard {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            "Catálogo do jogo",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = state.catalogStatus,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedTextField(
+                            value = state.catalogQuery,
+                            onValueChange = { viewModel.searchCatalog(it) },
+                            label = { Text("Buscar classe, método ou campo") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+
+            items(state.catalogResults) { entry ->
+                CatalogEntryCard(
+                    entry = entry,
+                    onCopy = { copyToClipboard(context, entry.copyText, snackbarHostState, scope) },
+                    onAdd = { viewModel.addFromCatalog(entry) }
+                )
             }
 
             item {
@@ -281,6 +314,7 @@ fun DevKitScreen(
                     VariableCard(
                         variable = variable,
                         onToggle = { viewModel.toggleEnabled(variable, it) },
+                        onCopy = { copyToClipboard(context, "${variable.name} ${variable.address}", snackbarHostState, scope) },
                         onDelete = { viewModel.deleteVariable(variable.id) }
                     )
                 }
@@ -381,6 +415,7 @@ private fun SnapshotValueCard(value: DevKitSnapshotValue, onCopy: (String) -> Un
 private fun VariableCard(
     variable: DevKitVariable,
     onToggle: (Boolean) -> Unit,
+    onCopy: () -> Unit,
     onDelete: () -> Unit
 ) {
     LarpCard(modifier = Modifier.fillMaxWidth()) {
@@ -399,8 +434,52 @@ private fun VariableCard(
                 )
             }
             Switch(checked = variable.enabled, onCheckedChange = onToggle)
+            IconButton(onClick = onCopy) {
+                Icon(Icons.Filled.ContentCopy, contentDescription = "Copiar")
+            }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Filled.Delete, contentDescription = "Excluir")
+            }
+        }
+    }
+}
+
+@Composable
+private fun CatalogEntryCard(
+    entry: DevKitEntry,
+    onCopy: () -> Unit,
+    onAdd: () -> Unit
+) {
+    LarpCard(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = entry.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                if (entry.signature.isNotBlank()) {
+                    Text(
+                        text = (if (entry.isStatic) "static " else "") + entry.signature,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+                Text(
+                    text = "${entry.location} • ${entry.assembly}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+            IconButton(onClick = onCopy) {
+                Icon(Icons.Filled.ContentCopy, contentDescription = "Copiar")
+            }
+            if (entry.kind == 'M' && entry.address.isNotBlank()) {
+                IconButton(onClick = onAdd) {
+                    Icon(Icons.Filled.Add, contentDescription = "Adicionar às variáveis")
+                }
             }
         }
     }
