@@ -1,6 +1,5 @@
 package com.larp.launcher.feature.launcher
 
-import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
@@ -15,11 +14,11 @@ import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.view.Window
 import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
+import androidx.activity.ComponentActivity
 import com.larp.launcher.boot.Boot
 import com.larp.launcher.diagnostics.Diario
 import com.larp.launcher.patcher.GameContext
@@ -33,7 +32,7 @@ import java.util.Locale
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class GameActivity : Activity() {
+class GameActivity : ComponentActivity() {
 
     @Inject lateinit var modRuntime: ModRuntime
 
@@ -62,7 +61,6 @@ class GameActivity : Activity() {
     override fun getApplicationContext(): Context = appContext ?: super.getApplicationContext()
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        requestWindowFeature(Window.FEATURE_NO_TITLE)
         super.onCreate(savedInstanceState)
         java.io.File(filesDir, ERROR_FILE).delete()
         val e = env

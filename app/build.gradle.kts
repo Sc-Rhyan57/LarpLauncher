@@ -1,12 +1,3 @@
-import java.io.File
-import java.net.URI
-import org.gradle.api.DefaultTask
-import org.gradle.api.file.DirectoryProperty
-import org.gradle.api.provider.Property
-import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.OutputDirectory
-import org.gradle.api.tasks.TaskAction
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -135,21 +126,21 @@ android {
 
 val larpFridaVersion: String = envOrProp("larpFridaVersion", "17.2.1")
 
-abstract class DownloadFridaGadget : DefaultTask() {
-    @get:Input
-    abstract val fridaVersion: Property<String>
+abstract class DownloadFridaGadget : org.gradle.api.DefaultTask() {
+    @get:org.gradle.api.tasks.Input
+    abstract val fridaVersion: org.gradle.api.provider.Property<String>
 
-    @get:OutputDirectory
-    abstract val jniDir: DirectoryProperty
+    @get:org.gradle.api.tasks.OutputDirectory
+    abstract val jniDir: org.gradle.api.property.DirectoryProperty
 
-    @TaskAction
+    @org.gradle.api.tasks.TaskAction
     fun run() {
         val version = fridaVersion.get()
         val archs = listOf("arm64-v8a")
         val dir = jniDir.get().asFile
         dir.mkdirs()
         archs.forEach { arch ->
-            val target = File(File(dir, arch), "libfrida-gadget.so")
+            val target = java.io.File(java.io.File(dir, arch), "libfrida-gadget.so")
             if (target.isFile && target.length() > 1_000_000) {
                 logger.lifecycle("[frida] $arch já existe (${target.length() / 1024} KB)")
                 return@forEach
@@ -164,9 +155,9 @@ abstract class DownloadFridaGadget : DefaultTask() {
             val assetName = "frida-gadget-$version-$fridaArch.so.xz"
             val url = "https://github.com/frida/frida/releases/download/$version/$assetName"
             logger.lifecycle("[frida] baixando $assetName de $url")
-            val tmpXz = File(target.parentFile, "libfrida-gadget.so.xz")
+            val tmpXz = java.io.File(target.parentFile, "libfrida-gadget.so.xz")
             try {
-                URI(url).toURL().openStream().use { input ->
+                java.net.URI(url).toURL().openStream().use { input ->
                     tmpXz.outputStream().use { output -> input.copyTo(output, 64 * 1024) }
                 }
                 logger.lifecycle("[frida] descompactando ${tmpXz.length() / 1024} KB")
@@ -183,7 +174,7 @@ abstract class DownloadFridaGadget : DefaultTask() {
         }
     }
 
-    private fun decompressXz(input: File, output: File) {
+    private fun decompressXz(input: java.io.File, output: java.io.File) {
         val process = ProcessBuilder("xz", "-d", "-c", input.absolutePath)
             .redirectOutput(ProcessBuilder.Redirect.PIPE)
             .redirectError(ProcessBuilder.Redirect.INHERIT)
