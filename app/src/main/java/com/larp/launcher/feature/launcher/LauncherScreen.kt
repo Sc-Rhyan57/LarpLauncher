@@ -136,6 +136,7 @@ fun LauncherScreen(
             }
         }
     }
+    }
 }
 
 @Composable
@@ -168,7 +169,6 @@ private fun UserHeaderCard(state: LauncherUiState) {
                 }
             }
         }
-    }
     }
 }
 
