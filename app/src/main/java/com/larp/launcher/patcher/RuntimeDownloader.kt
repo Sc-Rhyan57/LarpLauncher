@@ -62,7 +62,7 @@ class RuntimeDownloader @Inject constructor(
         downloadTo(url, bepinexZip(), onProgress)
     }
 
-    suspend fun ensureRuntime(onProgress: (String, Float) -> Unit): EnsureResult = withContext(Dispatchers.IO) {
+    suspend fun ensureRuntime(onProgress: suspend (String, Float) -> Unit): EnsureResult = withContext(Dispatchers.IO) {
         val missing = mutableListOf<String>()
         if (!hasDotnet()) missing.add("dotnet")
         if (!hasBepinex()) missing.add("bepinex")
@@ -74,7 +74,7 @@ class RuntimeDownloader @Inject constructor(
                 "dotnet" -> {
                     if (hasDotnetAsset()) continue
                     onProgress("Baixando runtime .NET…", total)
-                    val fraction = downloadDotnet { p ->
+                    downloadDotnet { p ->
                         onProgress("Baixando runtime .NET…", total + p * 0.5f)
                     }
                     total += 0.5f
@@ -129,7 +129,7 @@ class RuntimeDownloader @Inject constructor(
             tmp.delete()
         }
         Log.i(TAG, "${target.name} baixado (${target.length()} bytes)")
-        target
+        return target
     }
 
     fun deleteDownloaded() {

@@ -8,10 +8,8 @@ import com.larp.launcher.data.repository.GameEnvRepository
 import com.larp.launcher.data.repository.ModsRepository
 import com.larp.launcher.data.repository.RoomsRepository
 import com.larp.launcher.data.repository.VoiceRepository
-import com.larp.launcher.patcher.GameLauncher
 import com.larp.launcher.patcher.HashDoInterop
 import com.larp.launcher.patcher.InteropPronto
-import com.larp.launcher.patcher.ModRuntime
 import com.larp.launcher.patcher.ModSync
 import dagger.Module
 import dagger.Provides
@@ -75,22 +73,6 @@ object RepositoryModule {
         httpClient: okhttp3.OkHttpClient,
         interop: InteropPronto
     ): ModSync = ModSync(context, api, cache, httpClient, interop)
-
-    @Provides @Singleton
-    fun provideModRuntime(
-        @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context,
-        cache: com.larp.launcher.data.local.cache.ModCacheManager,
-        envProvider: LarpEnvProvider
-    ): ModRuntime = ModRuntime(context, cache, envProvider)
-
-    @Provides @Singleton
-    fun provideGameLauncher(
-        @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context,
-        gameEnvRepo: GameEnvRepository,
-        modRuntime: ModRuntime,
-        modSync: ModSync,
-        cache: com.larp.launcher.data.local.cache.ModCacheManager
-    ): GameLauncher = GameLauncher(context, gameEnvRepo, modRuntime, modSync, cache)
 
     @Provides @Singleton
     fun provideFridaInjector(

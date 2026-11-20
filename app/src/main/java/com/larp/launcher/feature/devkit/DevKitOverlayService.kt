@@ -174,7 +174,7 @@ class DevKitOverlayService : Service() {
         }
         val buttonRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            horizontalGravity = Gravity.END
+            gravity = Gravity.END
         }
         val openBtn = TextView(this).apply {
             text = "Abrir no app"
