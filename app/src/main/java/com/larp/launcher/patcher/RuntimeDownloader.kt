@@ -62,7 +62,7 @@ class RuntimeDownloader @Inject constructor(
         downloadTo(url, bepinexZip(), onProgress)
     }
 
-    suspend fun ensureRuntime(onProgress: suspend (String, Float) -> Unit): EnsureResult = withContext(Dispatchers.IO) {
+    suspend fun ensureRuntime(onProgress: (String, Float) -> Unit): EnsureResult = withContext(Dispatchers.IO) {
         val missing = mutableListOf<String>()
         if (!hasDotnet()) missing.add("dotnet")
         if (!hasBepinex()) missing.add("bepinex")
@@ -74,16 +74,18 @@ class RuntimeDownloader @Inject constructor(
                 "dotnet" -> {
                     if (hasDotnetAsset()) continue
                     onProgress("Baixando runtime .NET…", total)
+                    val base = total
                     downloadDotnet { p ->
-                        onProgress("Baixando runtime .NET…", total + p * 0.5f)
+                        onProgress("Baixando runtime .NET…", base + p * 0.5f)
                     }
                     total += 0.5f
                 }
                 "bepinex" -> {
                     if (hasBepinexAsset()) continue
                     onProgress("Baixando BepInEx…", total)
+                    val base = total
                     downloadBepinex { p ->
-                        onProgress("Baixando BepInEx…", total + p * 0.5f)
+                        onProgress("Baixando BepInEx…", base + p * 0.5f)
                     }
                     total = 1f
                 }
@@ -133,8 +135,12 @@ class RuntimeDownloader @Inject constructor(
     }
 
     fun deleteDownloaded() {
-        listOf(dotnetZip(), bepinexZip(), File(dotnetZip().parentFile, dotnetZip().name + ".part"),
-            File(bepinexZip().parentFile, bepinexZip().name + ".part")).forEach { it.delete() }
+        listOf(
+            dotnetZip(),
+            bepinexZip(),
+            File(dotnetZip().parentFile, dotnetZip().name + ".part"),
+            File(bepinexZip().parentFile, bepinexZip().name + ".part")
+        ).forEach { it.delete() }
     }
 
     sealed class EnsureResult {
