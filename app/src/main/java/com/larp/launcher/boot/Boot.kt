@@ -1,22 +1,36 @@
 package com.larp.launcher.boot
 
-import com.larp.launcher.patcher.GameEnv
-import com.regis.boot.Boot as Local
+import android.util.Log
+import com.regis.boot.Boot as Native
 
 object Boot {
 
-    private const val CLASS_NAME = "com.regis.boot.Boot"
+    private const val TAG = "LarpBoot"
 
-    private fun remote(): Class<*>? =
-        runCatching { GameEnv.get()?.classLoader?.loadClass(CLASS_NAME) }.getOrNull()
+    val stage: Int get() = Native.stage
+    val message: String get() = Native.message
+    val lines: List<String> get() = Native.lines()
+    @Volatile var failure: Throwable? = null
+        private set
 
-    val stage: Int
-        get() = runCatching { remote()?.getField("stage")?.getInt(null) }.getOrNull() ?: Local.stage
-
-    val message: String
-        get() = runCatching { remote()?.getField("message")?.get(null) as? String }.getOrNull() ?: Local.message
-
-    @Suppress("UNCHECKED_CAST")
-    val lines: List<String>
-        get() = runCatching { remote()?.getMethod("lines")?.invoke(null) as? List<String> }.getOrNull() ?: Local.lines()
+    @JvmStatic
+    fun load(name: String) {
+        failure = null
+        Native.clear()
+        Native.status(1, "Loading $name")
+        try {
+            if (name == "fusion") {
+                runCatching { System.loadLibrary("coreclr") }
+                System.loadLibrary("fusion")
+            } else {
+                System.loadLibrary(name)
+            }
+            if (Native.stage < 1) Native.status(1, "Loaded $name")
+            Log.i(TAG, "Loaded $name")
+        } catch (t: Throwable) {
+            failure = t
+            Native.status(-1, "Failed $name: ${t.message}")
+            Log.e(TAG, "Failed to load $name", t)
+        }
+    }
 }
