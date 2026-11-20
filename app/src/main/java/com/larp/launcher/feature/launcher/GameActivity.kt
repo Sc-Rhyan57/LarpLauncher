@@ -1,5 +1,6 @@
 package com.larp.launcher.feature.launcher
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
@@ -26,6 +27,7 @@ import com.larp.launcher.patcher.GameEnv
 import com.larp.launcher.patcher.ModRuntime
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.runBlocking
+import java.io.File
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Proxy
 import java.util.Locale
@@ -96,21 +98,27 @@ class GameActivity : ComponentActivity() {
 
     private fun loadEosSdkSafely(classLoader: ClassLoader) {
         runCatching {
-            val paths = System.getProperty("java.library.path").orEmpty().split(File.pathSeparator)
             val candidates = listOf("libEOSSDK.so", "libepicgames-eossdk.so", "libeossdk.so")
-            val found = candidates.firstNotNullOf { name ->
-                paths.firstOrNull { path ->
-                    File(path, name).isFile
-                }?.let { name }
-            }
-            if (found != null) {
-                runCatching { System.loadLibrary(found.removePrefix("lib").removeSuffix(".so")) }
+            val applicationInfo = env?.appInfo
+            val nativeLibDir = applicationInfo?.nativeLibraryDir
+            if (nativeLibDir != null) {
+                val libDir = File(nativeLibDir)
+                if (libDir.isDirectory) {
+                    for (candidate in candidates) {
+                        val libFile = File(libDir, candidate)
+                        if (libFile.isFile) {
+                            val libName = candidate.removePrefix("lib").removeSuffix(".so")
+                            runCatching { System.loadLibrary(libName) }
+                            break
+                        }
+                    }
+                }
             }
         }
         runCatching {
-            classLoader.loadClass("com.epicgames.mobile.eossdk.EOSSDK")
-                .getMethod("init", Activity::class.java)
-                .invoke(null, this)
+            val eossdkClass = classLoader.loadClass("com.epicgames.mobile.eossdk.EOSSDK")
+            val initMethod = eossdkClass.getMethod("init", Activity::class.java)
+            initMethod.invoke(null, this as Activity)
         }.onFailure { t ->
             Log.w(TAG, "EOSSDK init falhou (jogo pode rodar sem EOS): ${t.message}")
         }

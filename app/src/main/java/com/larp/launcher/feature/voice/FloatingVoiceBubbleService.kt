@@ -213,5 +213,9 @@ class FloatingVoiceBubbleService : Service() {
         fun hide(context: Context) {
             context.startService(Intent(context, FloatingVoiceBubbleService::class.java).setAction(ACTION_STOP))
         }
+
+        fun toggleMute(context: Context) {
+            context.startService(Intent(context, FloatingVoiceBubbleService::class.java).setAction(ACTION_TOGGLE_MUTE))
+        }
     }
 }
