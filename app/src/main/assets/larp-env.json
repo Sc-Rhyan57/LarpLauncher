@@ -12,6 +12,6 @@
   "fridaGadgetBundled": true,
   "sentryDsn": "",
   "fcmSenderId": "",
-  "runtimeDotnetUrl": "https://github.com/BepInEx/dotnet-runtime/releases/download/20220911.46/android-arm64.zip",
+  "runtimeDotnetUrl": "",
   "runtimeBepinexUrl": ""
 }

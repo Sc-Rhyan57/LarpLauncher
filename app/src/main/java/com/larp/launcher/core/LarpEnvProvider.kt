@@ -32,7 +32,7 @@ data class LarpEnv(
     companion object {
         const val DEFAULT_API_URL = "https://larp-relaxxx.rhyanlus501-b24.workers.dev"
         const val DEFAULT_WS_URL = "wss://larp-relaxxx.rhyanlus501-b24.workers.dev"
-        const val DEFAULT_RUNTIME_DOTNET_URL = "https://github.com/BepInEx/dotnet-runtime/releases/download/20220911.46/android-arm64.zip"
+        const val DEFAULT_RUNTIME_DOTNET_URL = ""
         const val DEFAULT_RUNTIME_BEPINEX_URL = ""
     }
 }

@@ -26,6 +26,26 @@ LIBS BAIXADAS AUTOMATICAMENTE PELO GRADLE (task downloadFridaGadget):
 
 ABI SUPORTADA: arm64-v8a apenas (Already 95%+ dos dispositivos Android).
 
+ASSETS DO RUNTIME DE MODS (necessários para BepInEx funcionar):
+
+  app/src/main/assets/
+  ├── dotnet-arm64.zip                                ~24 MB   DLLs do .NET 6 (System.Private.CoreLib.dll, etc)
+  └── BepInEx-arm64.zip                                ~3 MB   BepInEx core (BepInEx.Core.dll, Harmony, MonoMod, etc)
+
+  Estes zips vêm do projeto BepInEx.Android.Launcher-main (dotnet.zip e BepInEx.Android.zip,
+  renomeados). Sem eles o libfusion.so carrega mas aborta com "BepInEx core: ausente".
+
+  O ModRuntime.kt extrai:
+    dotnet-arm64.zip   -> filesDir/dotnet/
+    BepInEx-arm64.zip  -> filesDir/BepInEx/   (preserva core/, plugins/, config/)
+
+URLS ALTERNATIVAS (download em runtime, opcional):
+  Se preferir não empacotar os zips, configure em Ajustes → Runtime ou edite
+  app/src/main/assets/larp-env.json:
+    "runtimeDotnetUrl":   "https://seu-host/dotnet-arm64.zip"
+    "runtimeBepinexUrl":  "https://seu-host/BepInEx-arm64.zip"
+  Lembre-se de usar zips com a MESMA estrutura interna dos empacotados.
+
 Se quiser adicionar outras ABIs (armeabi-v7a, x86_64):
   1. Obtenha as .so equivalentes para a ABI desejada.
   2. Coloque em app/src/main/jniLibs/<abi>/.

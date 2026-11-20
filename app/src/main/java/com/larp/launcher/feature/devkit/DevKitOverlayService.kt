@@ -278,11 +278,10 @@ class DevKitOverlayService : Service() {
 
     private fun modsLines(): List<String> {
         val out = ArrayList<String>()
-        out += "Loader: etapa=${com.larp.launcher.boot.Boot.stage} ${com.larp.launcher.boot.Boot.message}"
+        out += "Loader: etapa=${com.regis.boot.Boot.stage} ${com.regis.boot.Boot.message}"
         val dotnet = modCache.dotnetDir()
-        out += "libfusion: " + if (File(filesDir, "native/libfusion.so").isFile) "ok" else "Error: ausente"
-        out += "dotnet: " + if (dotnet.walkTopDown().any { it.name == "System.Private.CoreLib.dll" }) "ok" else "Error: ausente"
-        out += "libcoreclr: " + if (dotnet.walkTopDown().any { it.name == "libcoreclr.so" } || File(filesDir, "native/libcoreclr.so").isFile) "ok" else "Error: não encontrada"
+        out += "dotnet: " + if (File(dotnet, "System.Private.CoreLib.dll").isFile) "ok" else "Error: ausente"
+        out += "libcoreclr: " + if (File(dotnet, "libcoreclr.so").isFile || File(applicationInfo.nativeLibraryDir, "libcoreclr.so").isFile) "ok" else "Error: não encontrada"
         out += "BepInEx core: " + if (File(modCache.bepinexDir(), "core/BepInEx.Core.dll").isFile) "ok" else "Error: ausente"
         val plugins = modCache.bepinexPluginsDir().walkTopDown().filter { it.isFile && it.extension.equals("dll", true) }.toList()
         out += "Plugins em disco: ${plugins.size}"
@@ -295,7 +294,7 @@ class DevKitOverlayService : Service() {
         out += "Erros: ${errors.size}"
         errors.takeLast(12).forEach { out += "  ✖ $it" }
         if (log.isEmpty()) out += "Aviso: LogOutput.log ainda não existe"
-        com.larp.launcher.boot.Boot.lines.takeLast(8).forEach { out += "boot: $it" }
+        com.regis.boot.Boot.lines().takeLast(8).forEach { out += "boot: $it" }
         return out
     }
 

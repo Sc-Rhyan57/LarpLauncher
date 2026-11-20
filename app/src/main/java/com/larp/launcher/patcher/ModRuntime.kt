@@ -70,16 +70,22 @@ class ModRuntime @Inject constructor(
         val bepKey = bepKeyBase + bepFingerprint
         if (prefs.getInt(bepKey, 0) != BUNDLE_VERSION || !File(bepinexDir, "core/BepInEx.Core.dll").isFile) {
             val bepinexSource = runtimeDownloader.bepinexSource()
-            if (bepinexSource != null) {
-                Log.i(TAG, "Extraindo BepInEx em $bepinexDir")
-                onProgress("Extraindo BepInEx…", 0.45f)
-                deleteTree(File(bepinexDir, "core"))
-                unzipSource(bepinexSource, bepinexDir, true)
-                prefs.edit().putInt(bepKey, BUNDLE_VERSION).apply()
-            } else {
-                Log.i(TAG, "BepInEx ausente — rodando só com .NET runtime + hooks nativos")
-                onProgress("Sem BepInEx — prosseguindo…", 0.45f)
+            if (bepinexSource == null) {
+                Log.e(TAG, "BepInEx-arm64.zip indisponível — abortando prepare()")
+                onProgress("BepInEx ausente. Abra Ajustes → Runtime e baixe BepInEx-arm64.zip.", 0.45f)
+                return@withContext false
             }
+            Log.i(TAG, "Extraindo BepInEx em $bepinexDir")
+            onProgress("Extraindo BepInEx…", 0.45f)
+            deleteTree(File(bepinexDir, "core"))
+            unzipSource(bepinexSource, bepinexDir, true)
+            prefs.edit().putInt(bepKey, BUNDLE_VERSION).apply()
+        }
+
+        if (!File(bepinexDir, "core/BepInEx.Core.dll").isFile) {
+            Log.e(TAG, "BepInEx.Core.dll não encontrado em ${bepinexDir}/core após extração")
+            onProgress("Falha ao extrair BepInEx.Core.dll", 0.5f)
+            return@withContext false
         }
 
         val metadataFile = File(gameDataDir, "Managed/Metadata/global-metadata.dat")

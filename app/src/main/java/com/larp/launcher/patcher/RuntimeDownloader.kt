@@ -36,7 +36,7 @@ class RuntimeDownloader @Inject constructor(
 
     fun hasBepinex(): Boolean = hasBepinexAsset() || bepinexZip().isFile
 
-    fun hasRuntime(): Boolean = hasDotnet()
+    fun hasRuntime(): Boolean = hasDotnet() && hasBepinex()
 
     fun dotnetSource(): RuntimeSource =
         if (hasDotnetAsset()) RuntimeSource.Asset(context, "dotnet-arm64.zip")
@@ -63,37 +63,33 @@ class RuntimeDownloader @Inject constructor(
     }
 
     suspend fun ensureRuntime(onProgress: suspend (String, Float) -> Unit): EnsureResult = withContext(Dispatchers.IO) {
-        if (hasDotnet()) {
-            if (!hasBepinex()) {
-                val env = envProvider.current()
-                if (env.runtimeBepinexUrl.isNotBlank() && !hasBepinexAsset()) {
-                    onProgress("Baixando BepInEx…", 0f)
-                    val base = 0f
-                    downloadBepinex { p ->
-                        onProgress("Baixando BepInEx…", base + p)
-                    }
-                }
-            }
-            return@withContext EnsureResult.AlreadyAvailable
-        }
-
-        onProgress("Baixando runtime .NET…", 0f)
-        val base = 0f
-        downloadDotnet { p ->
-            onProgress("Baixando runtime .NET…", base + p * 0.9f)
-        }
-
         val env = envProvider.current()
-        if (env.runtimeBepinexUrl.isNotBlank() && !hasBepinexAsset()) {
-            onProgress("Baixando BepInEx…", 0.9f)
-            val bbase = 0.9f
-            downloadBepinex { p ->
-                onProgress("Baixando BepInEx…", bbase + p * 0.1f)
+        var downloaded = false
+
+        if (!hasDotnet()) {
+            onProgress("Baixando runtime .NET…", 0f)
+            downloadDotnet { p ->
+                onProgress("Baixando runtime .NET…", p * 0.8f)
+            }
+            downloaded = true
+        }
+
+        if (!hasBepinex()) {
+            if (env.runtimeBepinexUrl.isBlank() && !hasBepinexAsset()) {
+                throw IOException("BepInEx-arm64.zip não está no APK e runtimeBepinexUrl não configurada em Ajustes → Runtime")
+            }
+            if (env.runtimeBepinexUrl.isNotBlank() && !hasBepinexAsset()) {
+                onProgress("Baixando BepInEx…", 0.8f)
+                val bbase = 0.8f
+                downloadBepinex { p ->
+                    onProgress("Baixando BepInEx…", bbase + p * 0.2f)
+                }
+                downloaded = true
             }
         }
 
         onProgress("Runtime pronto", 1f)
-        EnsureResult.Downloaded
+        if (downloaded) EnsureResult.Downloaded else EnsureResult.AlreadyAvailable
     }
 
     private suspend fun downloadTo(url: String, target: File, onProgress: suspend (Float) -> Unit): File {
