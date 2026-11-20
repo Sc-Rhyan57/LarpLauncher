@@ -198,7 +198,7 @@ class GameActivity : ComponentActivity() {
     override fun onDestroy() {
         callPlayer("destroy")
         if (devKitStarted) {
-            runCatching { stopService(Intent(this, DevKitOverlayService::class.java)) }
+            runCatching { baseContext.stopService(launcherServiceIntent(DevKitOverlayService::class.java)) }
             devKitStarted = false
         }
         super.onDestroy()
@@ -224,6 +224,9 @@ class GameActivity : ComponentActivity() {
         Log.i(TAG, "UnityPlayer criado")
     }
 
+    private fun launcherServiceIntent(service: Class<*>): Intent =
+        Intent().setComponent(android.content.ComponentName(baseContext.packageName, service.name))
+
     private fun maybeStartDevKitOverlay() {
         if (devKitStarted) return
         val enabled = DevKitOverlayService.isDevKitEnabled(this)
@@ -233,11 +236,15 @@ class GameActivity : ComponentActivity() {
             return
         }
         runCatching {
-            val intent = Intent(this, DevKitOverlayService::class.java)
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                startForegroundService(intent)
+            val intent = launcherServiceIntent(DevKitOverlayService::class.java)
+            val component = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                baseContext.startForegroundService(intent)
             } else {
-                startService(intent)
+                baseContext.startService(intent)
+            }
+            if (component == null) {
+                Log.w(TAG, "Dev Kit overlay: serviço não encontrado")
+                return
             }
             devKitStarted = true
             Log.i(TAG, "Dev Kit overlay iniciado")
@@ -256,7 +263,7 @@ class GameActivity : ComponentActivity() {
             return
         }
         runCatching {
-            com.larp.launcher.feature.voice.FloatingVoiceBubbleService.show(this)
+            com.larp.launcher.feature.voice.FloatingVoiceBubbleService.show(baseContext)
             Log.i(TAG, "Voice bubble iniciado sobre o jogo")
         }.onFailure { Log.w(TAG, "Falha ao iniciar voice bubble: ${it.message}") }
     }
@@ -331,9 +338,9 @@ class GameActivity : ComponentActivity() {
         addContentView(overlay, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        val bootClass = runCatching { playerClass?.classLoader?.loadClass("com.larp.boot.Boot") ?: Boot::class.java }.getOrDefault(Boot::class.java)
-        val stageField = runCatching { bootClass.getField("stage") }.getOrNull()
-        val messageField = runCatching { bootClass.getField("message") }.getOrNull()
+        val bootClass = runCatching { playerClass?.classLoader?.loadClass("com.larp.boot.Boot") }.getOrNull() ?: Boot::class.java
+        val stageField = runCatching { bootClass.getDeclaredField("stage").apply { isAccessible = true } }.getOrNull()
+        val messageField = runCatching { bootClass.getDeclaredField("message").apply { isAccessible = true } }.getOrNull()
         val handler = Handler(Looper.getMainLooper())
         val start = SystemClock.uptimeMillis()
         val d = Diario.begin(this)
@@ -342,8 +349,8 @@ class GameActivity : ComponentActivity() {
         val tick = object : Runnable {
             var shown = 0
             override fun run() {
-                val stage = stageField?.getInt(null) ?: 0
-                val msg = messageField?.get(null)?.toString() ?: ""
+                val stage = runCatching { stageField?.getInt(null) }.getOrNull() ?: Boot.stage
+                val msg = runCatching { messageField?.get(null)?.toString() }.getOrNull() ?: Boot.message
                 val elapsed = SystemClock.uptimeMillis() - start
                 runBlocking { d.step("stage=$stage msg=$msg") }
                 if (stage < 2 && elapsed <= MAX_WAIT_MS && !isFinishing) {
