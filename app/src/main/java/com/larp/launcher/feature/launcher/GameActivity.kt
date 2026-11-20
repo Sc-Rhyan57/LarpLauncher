@@ -78,6 +78,48 @@ class GameActivity : ComponentActivity() {
         }
     }
 
+    private fun callPlayer(name: String, types: Array<Class<*>> = emptyArray(), vararg args: Any?) {
+        val p = player ?: return
+        runCatching { playerClass?.getMethod(name, *types)?.invoke(p, *args) }
+            .onFailure { Log.w(TAG, "UnityPlayer.$name falhou: ${unwrap(it).message}") }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        callPlayer("resume")
+    }
+
+    override fun onPause() {
+        super.onPause()
+        callPlayer("pause")
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        callPlayer("windowFocusChanged", arrayOf(Boolean::class.javaPrimitiveType!!), hasFocus)
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        callPlayer("configurationChanged", arrayOf(android.content.res.Configuration::class.java), newConfig)
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        callPlayer("lowMemory")
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        callPlayer("newIntent", arrayOf(Intent::class.java), intent)
+    }
+
+    override fun onDestroy() {
+        callPlayer("destroy")
+        super.onDestroy()
+    }
+
     private fun startUnity(env: GameEnv) {
         val classLoader = env.classLoader
         Thread.currentThread().contextClassLoader = classLoader
