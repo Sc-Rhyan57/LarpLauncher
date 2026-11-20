@@ -48,21 +48,21 @@ class RuntimeDownloader @Inject constructor(
         else if (bepinexZip().isFile) RuntimeSource.File(bepinexZip())
         else throw IOException("BepInEx-arm64.zip indisponível")
 
-    suspend fun downloadDotnet(onProgress: (Float) -> Unit = {}): File = withContext(Dispatchers.IO) {
+    suspend fun downloadDotnet(onProgress: suspend (Float) -> Unit = {}): File = withContext(Dispatchers.IO) {
         val env = envProvider.current()
         val url = env.runtimeDotnetUrl.trim()
         if (url.isBlank()) throw IOException("URL do runtime .NET não configurada em Ajustes")
         downloadTo(url, dotnetZip(), onProgress)
     }
 
-    suspend fun downloadBepinex(onProgress: (Float) -> Unit = {}): File = withContext(Dispatchers.IO) {
+    suspend fun downloadBepinex(onProgress: suspend (Float) -> Unit = {}): File = withContext(Dispatchers.IO) {
         val env = envProvider.current()
         val url = env.runtimeBepinexUrl.trim()
         if (url.isBlank()) throw IOException("URL do BepInEx não configurada em Ajustes")
         downloadTo(url, bepinexZip(), onProgress)
     }
 
-    suspend fun ensureRuntime(onProgress: (String, Float) -> Unit): EnsureResult = withContext(Dispatchers.IO) {
+    suspend fun ensureRuntime(onProgress: suspend (String, Float) -> Unit): EnsureResult = withContext(Dispatchers.IO) {
         val missing = mutableListOf<String>()
         if (!hasDotnet()) missing.add("dotnet")
         if (!hasBepinex()) missing.add("bepinex")
@@ -95,7 +95,7 @@ class RuntimeDownloader @Inject constructor(
         EnsureResult.Downloaded
     }
 
-    private fun downloadTo(url: String, target: File, onProgress: (Float) -> Unit): File {
+    private suspend fun downloadTo(url: String, target: File, onProgress: suspend (Float) -> Unit): File {
         target.parentFile?.mkdirs()
         val tmp = File(target.parentFile, target.name + ".part")
         if (tmp.exists()) tmp.delete()
