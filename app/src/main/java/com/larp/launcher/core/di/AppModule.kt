@@ -24,6 +24,10 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideContext(@ApplicationContext context: Context): Context = context
+
+    @Provides
+    @Singleton
     fun provideAuthPrefs(@ApplicationContext context: Context): AuthPrefs = AuthPrefs(context)
 
     @Provides
