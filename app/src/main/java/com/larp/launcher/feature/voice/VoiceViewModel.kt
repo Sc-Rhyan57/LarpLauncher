@@ -3,6 +3,7 @@ package com.larp.launcher.feature.voice
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.larp.launcher.OverlayPermissionHolder
 import com.larp.launcher.core.console.Console
 import com.larp.launcher.data.repository.AuthRepository
 import com.larp.launcher.domain.model.RoomParticipant
@@ -22,6 +23,7 @@ data class VoiceUiState(
     val roomId: String? = null,
     val participants: List<RoomParticipant> = emptyList(),
     val muted: Boolean = false,
+    val canDrawOverlays: Boolean = false,
     val error: String? = null
 )
 
@@ -34,6 +36,14 @@ class VoiceViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(VoiceUiState())
     val state: StateFlow<VoiceUiState> = _state.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            OverlayPermissionHolder.state.collect {
+                _state.update { it.copy(canDrawOverlays = OverlayPermissionHolder.isGranted(context)) }
+            }
+        }
+    }
 
     fun connect(roomId: String) {
         if (_state.value.connecting || _state.value.connected) return

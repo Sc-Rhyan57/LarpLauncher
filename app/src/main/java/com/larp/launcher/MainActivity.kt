@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -53,10 +54,14 @@ class MainActivity : ComponentActivity() {
                 else -> isSystemInDarkTheme()
             }
             val authTick by AuthStateHolder.state.collectAsState()
+            val overlayTick by OverlayPermissionHolder.state.collectAsState()
             val startDestination = remember(authTick) {
                 val loggedIn = authRepository.isLoggedIn()
                 console.d("MainActivity", "startDestination: ${if (loggedIn) Routes.LAUNCHER else Routes.LOGIN}")
                 if (loggedIn) Routes.LAUNCHER else Routes.LOGIN
+            }
+            val overlayGranted = remember(overlayTick) {
+                OverlayPermissionHolder.isGranted(this)
             }
             LarpTheme(darkTheme = isDark, dynamicColor = dynamicColor) {
                 val navController = rememberNavController()
@@ -84,6 +89,29 @@ class MainActivity : ComponentActivity() {
         }
         handleOAuthRedirect(intent)
     }
+
+    override fun onResume() {
+        super.onResume()
+        if (lastOverlayGranted != OverlayPermissionHolder.isGranted(this)) {
+            lastOverlayGranted = OverlayPermissionHolder.isGranted(this)
+            OverlayPermissionHolder.bump()
+            console.i("MainActivity", "Overlay permission changed: $lastOverlayGranted")
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            val now = OverlayPermissionHolder.isGranted(this)
+            if (lastOverlayGranted != now) {
+                lastOverlayGranted = now
+                OverlayPermissionHolder.bump()
+                console.i("MainActivity", "Overlay permission (focus) changed: $now")
+            }
+        }
+    }
+
+    private var lastOverlayGranted: Boolean = false
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)

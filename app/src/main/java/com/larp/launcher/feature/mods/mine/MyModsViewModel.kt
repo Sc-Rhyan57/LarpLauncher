@@ -118,17 +118,9 @@ class MyModsViewModel @Inject constructor(
                 return@launch
             }
             val paths = enabled.map { it.dllPath }
-            try {
-                gameLauncher.launchLocalMods(paths).collect { progress ->
-                    _launch.value = progress
-                    if (progress.stage == PatchProgress.Stage.Ready) onStarted()
-                }
-                if (_launch.value?.stage == PatchProgress.Stage.Ready) {
-                    kotlinx.coroutines.delay(800)
-                    _launch.value = null
-                }
-            } catch (t: Throwable) {
-                _launch.value = PatchProgress(PatchProgress.Stage.Failed, t.message ?: "Erro", 0f, t)
+            gameLauncher.launchLocalMods(paths).collect { progress ->
+                _launch.value = progress
+                if (progress.stage == PatchProgress.Stage.Ready) onStarted()
             }
         }
     }

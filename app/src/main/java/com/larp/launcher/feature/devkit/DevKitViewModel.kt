@@ -3,6 +3,7 @@ package com.larp.launcher.feature.devkit
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.larp.launcher.OverlayPermissionHolder
 import com.larp.launcher.domain.model.DevKitSnapshot
 import com.larp.launcher.domain.model.DevKitVariable
 import com.larp.launcher.hook.LarpHookEngine
@@ -39,6 +40,13 @@ class DevKitViewModel @Inject constructor(
 
     init {
         refresh()
+        viewModelScope.launch {
+            OverlayPermissionHolder.state.collect {
+                _state.update {
+                    it.copy(canDrawOverlays = OverlayPermissionHolder.isGranted(context))
+                }
+            }
+        }
     }
 
     fun refresh() {
@@ -51,7 +59,7 @@ class DevKitViewModel @Inject constructor(
                     variables = variables,
                     snapshot = snapshot,
                     devKitEnabled = DevKitOverlayService.isDevKitEnabled(context),
-                    canDrawOverlays = android.provider.Settings.canDrawOverlays(context),
+                    canDrawOverlays = OverlayPermissionHolder.isGranted(context),
                     shadowHookReady = hookEngine.shadowReady(),
                     byteHookReady = hookEngine.byteReady(),
                     isLoading = false
@@ -78,7 +86,7 @@ class DevKitViewModel @Inject constructor(
             _state.update {
                 it.copy(
                     devKitEnabled = enabled,
-                    canDrawOverlays = android.provider.Settings.canDrawOverlays(context)
+                    canDrawOverlays = OverlayPermissionHolder.isGranted(context)
                 )
             }
         }
