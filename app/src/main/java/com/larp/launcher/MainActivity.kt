@@ -62,7 +62,7 @@ class MainActivity : ComponentActivity() {
                     startDestination = startDestination,
                     onLogout = {
                         authRepository.logout()
-                        AuthStateHolder.notify()
+                        AuthStateHolder.bump()
                         navController.navigate(Routes.LOGIN) {
                             popUpTo(Routes.LAUNCHER) { inclusive = true }
                         }
@@ -87,7 +87,7 @@ class MainActivity : ComponentActivity() {
                 runCatching {
                     runBlocking { authRepository.finishLogin(grant) }
                     console.i("MainActivity", "Login finalizado, atualizando state")
-                    AuthStateHolder.notify()
+                    AuthStateHolder.bump()
                 }.onFailure { t -> console.e("MainActivity", "Falha no finishLogin", t) }
             }
         }
@@ -97,7 +97,7 @@ class MainActivity : ComponentActivity() {
 object AuthStateHolder {
     private val _state = kotlinx.coroutines.flow.MutableStateFlow(0L)
     val state = _state
-    fun notify() {
+    fun bump() {
         _state.value = _state.value + 1
     }
 }

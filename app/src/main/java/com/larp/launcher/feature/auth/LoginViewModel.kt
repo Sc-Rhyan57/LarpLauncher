@@ -71,7 +71,7 @@ class LoginViewModel @Inject constructor(
 
     fun onLoginReturned() {
         console.i("Login", "OAuth redirect processado, notificando MainActivity")
-        AuthStateHolder.notify()
+        AuthStateHolder.bump()
     }
 
     fun consumePendingUrl() {
