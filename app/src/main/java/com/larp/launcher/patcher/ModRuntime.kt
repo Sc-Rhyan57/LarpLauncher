@@ -26,7 +26,12 @@ class ModRuntime @Inject constructor(
 
     private val prefs by lazy { context.getSharedPreferences("larp_runtime", Context.MODE_PRIVATE) }
 
-    suspend fun prepare(gameEnv: GameEnv, privateBepInEx: Boolean): Boolean = withContext(Dispatchers.IO) {
+    suspend fun prepare(
+        gameEnv: GameEnv,
+        privateBepInEx: Boolean,
+        onProgress: (String, Float) -> Unit = { _, _ -> }
+    ): Boolean = withContext(Dispatchers.IO) {
+        onProgress("Verificando runtime de mods…", 0.02f)
         val externalFiles = context.getExternalFilesDir(null) ?: throw IOException("Armazenamento externo indisponível")
         val dotnetDir = cache.dotnetDir()
         val bepinexDir = if (privateBepInEx) cache.bepinexDir() else File(externalFiles, "BepInEx")
@@ -47,6 +52,7 @@ class ModRuntime @Inject constructor(
 
         if (prefs.getInt(KEY_BUNDLE_VERSION, 0) != BUNDLE_VERSION || !File(dotnetDir, "System.Private.CoreLib.dll").isFile) {
             Log.i(TAG, "Extraindo .NET")
+            onProgress("Extraindo runtime .NET…", 0.1f)
             deleteTree(dotnetDir)
             unzipAsset("dotnet-arm64.zip", dotnetDir, false)
             prefs.edit().putInt(KEY_BUNDLE_VERSION, BUNDLE_VERSION).apply()
@@ -55,6 +61,7 @@ class ModRuntime @Inject constructor(
         val bepKey = if (privateBepInEx) "bundle_bep_privado" else "bundle_bep_externo"
         if (prefs.getInt(bepKey, 0) != BUNDLE_VERSION || !File(bepinexDir, "core/BepInEx.Core.dll").isFile) {
             Log.i(TAG, "Extraindo BepInEx em $bepinexDir")
+            onProgress("Extraindo BepInEx…", 0.45f)
             deleteTree(File(bepinexDir, "core"))
             unzipAsset("BepInEx-arm64.zip", bepinexDir, true)
             prefs.edit().putInt(bepKey, BUNDLE_VERSION).apply()
@@ -64,6 +71,7 @@ class ModRuntime @Inject constructor(
         var unityVersion = prefs.getString(KEY_UNITY_VERSION, null)
         if (prefs.getLong(KEY_GAME_LAST_UPDATE, 0L) != gameLastUpdate || !metadataFile.isFile || unityVersion == null) {
             Log.i(TAG, "Copiando metadados do jogo")
+            onProgress("Lendo dados do jogo…", 0.7f)
             metadataFile.parentFile?.mkdirs()
             ZipFile(gameEnv.sourceDir).use { zip ->
                 val entry = zip.getEntry(METADATA_ENTRY) ?: throw IOException("global-metadata.dat não está no APK do jogo")
@@ -78,6 +86,7 @@ class ModRuntime @Inject constructor(
                 .apply()
         }
 
+        onProgress("Configurando ambiente de mods…", 0.92f)
         val launcherLibDir = context.applicationInfo.nativeLibraryDir
         setenv("FUSION_BEPINEX_PATH", bepinexDir.absolutePath)
         setenv("FUSION_GAME_BINARY", libil2cpp.absolutePath)
@@ -93,6 +102,7 @@ class ModRuntime @Inject constructor(
         setenv("DOTNET_EnableWriteXorExecute", "0")
         setenv("SSL_CERT_DIR", "/apex/com.android.conscrypt/cacerts:/system/etc/security/cacerts")
         Log.i(TAG, "Mods: Unity $unityVersion, BepInEx em $bepinexDir")
+        onProgress("Runtime de mods pronto", 1f)
         true
     }
 

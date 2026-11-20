@@ -9,7 +9,10 @@ import com.larp.launcher.domain.model.LocalMod
 import com.larp.launcher.patcher.GameLauncher
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import com.larp.launcher.domain.model.PatchProgress
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -99,13 +102,33 @@ class MyModsViewModel @Inject constructor(
         }
     }
 
-    fun launchWithLocalMods() {
+    private val _launch = MutableStateFlow<PatchProgress?>(null)
+    val launch: StateFlow<PatchProgress?> = _launch.asStateFlow()
+
+    fun dismissLaunch() {
+        _launch.value = null
+    }
+
+    fun launchWithLocalMods(onStarted: () -> Unit = {}) {
         viewModelScope.launch {
             val enabled = state.value.mods.filter { it.enabled && it.dllPath.isNotBlank() }
-            if (enabled.isEmpty()) return@launch
+            if (enabled.isEmpty()) {
+                val msg = "Nenhum mod ativado. Ative pelo menos um mod para iniciar com mods."
+                _launch.value = PatchProgress(PatchProgress.Stage.Failed, msg, 0f, IllegalStateException(msg))
+                return@launch
+            }
             val paths = enabled.map { it.dllPath }
-            runCatching {
-                gameLauncher.launchLocalMods(paths).collect { _ -> }
+            try {
+                gameLauncher.launchLocalMods(paths).collect { progress ->
+                    _launch.value = progress
+                    if (progress.stage == PatchProgress.Stage.Ready) onStarted()
+                }
+                if (_launch.value?.stage == PatchProgress.Stage.Ready) {
+                    kotlinx.coroutines.delay(800)
+                    _launch.value = null
+                }
+            } catch (t: Throwable) {
+                _launch.value = PatchProgress(PatchProgress.Stage.Failed, t.message ?: "Erro", 0f, t)
             }
         }
     }

@@ -51,14 +51,22 @@ class GameLauncher @Inject constructor(
             emit(PatchProgress(PatchProgress.Stage.Failed, "Jogo base não instalado", 0f, IllegalStateException("Jogo não instalado: $gamePackage")))
             return@flow
         }
+        val assets = context.assets.list("").orEmpty()
+        val missing = listOf("dotnet-arm64.zip", "BepInEx-arm64.zip").filter { it !in assets }
+        if (missing.isNotEmpty()) {
+            val msg = "O runtime de mods não está neste APK. Faltam em app/src/main/assets: ${missing.joinToString(", ")}"
+            emit(PatchProgress(PatchProgress.Stage.Failed, msg, 0f, IllegalStateException(msg)))
+            return@flow
+        }
         try {
-            emit(PatchProgress(PatchProgress.Stage.Installing, "Copiando DLLs locais…", 0f))
+            emit(PatchProgress(PatchProgress.Stage.Installing, "Copiando DLLs locais…", 0.1f))
             val plugins = cache.bepinexPluginsDir().apply { mkdirs() }
-            dllPaths.forEach { src ->
+            dllPaths.forEachIndexed { index, src ->
                 val file = File(src)
                 if (file.isFile) file.copyTo(File(plugins, file.name), overwrite = true)
+                emit(PatchProgress(PatchProgress.Stage.Installing, "Copiando ${file.name}…", 0.1f + 0.4f * (index + 1) / dllPaths.size))
             }
-            emit(PatchProgress(PatchProgress.Stage.Preparing, "Preparando runtime .NET…", 0f))
+            emit(PatchProgress(PatchProgress.Stage.Preparing, "Preparando runtime .NET…", 0.6f))
             NativeLibsInstaller.ensureInstalled(context)
             emit(PatchProgress(PatchProgress.Stage.Ready, "Abrindo jogo com injeção…", 1f))
             startGame(env, privateBepInEx)
@@ -84,7 +92,8 @@ class GameLauncher @Inject constructor(
             emit(PatchProgress(PatchProgress.Stage.Preparing, "Preparando runtime…", 0f))
             modRuntime.prepare(env, privateBepInEx = false)
             emit(PatchProgress(PatchProgress.Stage.Ready, "Abrindo jogo com Frida…", 1f))
-            startGame(env, privateBepInEx = false)
+            val hasRuntime = "dotnet-arm64.zip" in context.assets.list("").orEmpty()
+            startGame(env, privateBepInEx = false, noMods = !hasRuntime)
         } catch (t: Throwable) {
             emit(PatchProgress(PatchProgress.Stage.Failed, t.message ?: "Erro", 0f, t))
         }

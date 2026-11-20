@@ -71,11 +71,89 @@ class GameActivity : ComponentActivity() {
             fail("Não consegui abrir o jogo instalado.", GameEnv.error())
             return
         }
+        if (intent?.getBooleanExtra(EXTRA_NO_MODS, false) == true) {
+            runStart(e)
+        } else {
+            prepareModsAsync(e)
+        }
+    }
+
+    private fun runStart(e: GameEnv) {
         try {
             startUnity(e)
         } catch (t: Throwable) {
             fail("O jogo não iniciou.", unwrap(t))
         }
+    }
+
+    private fun prepareModsAsync(e: GameEnv) {
+        val isPt = Locale.getDefault().language == "pt"
+        val title = TextView(this).apply {
+            text = if (isPt) "Carregando mods…" else "Loading mods…"
+            setTextColor(Color.WHITE)
+            textSize = 18f
+            gravity = Gravity.CENTER
+        }
+        val bar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 100
+            progress = 0
+        }
+        val status = TextView(this).apply {
+            setTextColor(Color.parseColor("#FFA0A0A0"))
+            textSize = 12f
+            gravity = Gravity.CENTER
+            setPadding(64, 24, 64, 24)
+        }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setBackgroundColor(Color.BLACK)
+            addView(title, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+            addView(bar, LinearLayout.LayoutParams(dp(280), dp(8)).apply { topMargin = dp(18) })
+            addView(status, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+        }
+        setContentView(root)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        val privateMods = intent?.getBooleanExtra(EXTRA_PRIVATE_MODS, true) ?: true
+        Thread {
+            var error: Throwable? = null
+            var ok = false
+            try {
+                val domainEnv = com.larp.launcher.domain.model.GameEnv(
+                    packageName = e.gamePackage,
+                    versionName = "",
+                    versionCode = 0,
+                    nativeLibraryDir = e.appInfo.nativeLibraryDir ?: "",
+                    sourceDir = e.appInfo.sourceDir ?: "",
+                    isInstalled = true
+                )
+                ok = runBlocking {
+                    modRuntime.prepare(domainEnv, privateMods) { msg, fraction ->
+                        runOnUiThread {
+                            status.text = msg
+                            bar.progress = (fraction * 100).toInt()
+                        }
+                    }
+                }
+                if (ok) {
+                    runOnUiThread { status.text = if (isPt) "Iniciando BepInEx…" else "Starting BepInEx…" }
+                    Boot.load("fusion")
+                    if (Boot.stage < 1) throw IllegalStateException(Boot.message)
+                    modsLoaded = true
+                }
+            } catch (t: Throwable) {
+                error = unwrap(t)
+            }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                when {
+                    error != null -> fail("Os mods não puderam ser carregados.", error)
+                    !ok -> fail("O runtime de mods não está neste APK. Faltam dotnet-arm64.zip e BepInEx-arm64.zip em app/src/main/assets.", null)
+                    else -> runStart(e)
+                }
+            }
+        }.start()
     }
 
     private fun callPlayer(name: String, types: Array<Class<*>> = emptyArray(), vararg args: Any?) {
@@ -124,7 +202,6 @@ class GameActivity : ComponentActivity() {
         val classLoader = env.classLoader
         Thread.currentThread().contextClassLoader = classLoader
         playerClass = classLoader.loadClass("com.unity3d.player.UnityPlayer")
-        loadMods(env)
         runCatching { Class.forName("com.innersloth.spacemafia.EosUnityPlayerActivity", true, classLoader) }
         val lifecycleEvents = classLoader.loadClass("com.unity3d.player.IUnityPlayerLifecycleEvents")
         val events = Proxy.newProxyInstance(classLoader, arrayOf(lifecycleEvents), UnityEventsHandler(this))
@@ -176,33 +253,6 @@ class GameActivity : ComponentActivity() {
             if (runCatching(attempt).isSuccess) return true
         }
         return runCatching { System.loadLibrary(libName) }.isSuccess
-    }
-
-    private fun loadMods(env: GameEnv) {
-        if (intent?.getBooleanExtra(EXTRA_NO_MODS, false) == true) return
-        val privateMods = intent?.getBooleanExtra(EXTRA_PRIVATE_MODS, true) ?: true
-        try {
-            val domainEnv = com.larp.launcher.domain.model.GameEnv(
-                packageName = env.gamePackage,
-                versionName = "",
-                versionCode = 0,
-                nativeLibraryDir = env.appInfo.nativeLibraryDir ?: "",
-                sourceDir = env.appInfo.sourceDir ?: "",
-                isInstalled = true
-            )
-            val ok = runBlocking { modRuntime.prepare(domainEnv, privateMods) }
-            if (ok) {
-                Boot.load("fusion")
-                modsLoaded = true
-                Log.i(TAG, "Hospedeiro de mods carregado")
-            } else {
-                Log.w(TAG, "Runtime não encontrado no APK; mods desativados nesta sessão")
-            }
-        } catch (t: Throwable) {
-            Log.e(TAG, "Mods desativados nesta sessão", unwrap(t))
-            diario = Diario.begin(this)
-            runBlocking { diario?.finish("mods_desativados: ${unwrap(t).message}") }
-        }
     }
 
     private fun showProgress() {

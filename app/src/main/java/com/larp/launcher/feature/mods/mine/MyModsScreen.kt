@@ -95,10 +95,7 @@ fun MyModsScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = {
-                        viewModel.launchWithLocalMods()
-                        onLaunch()
-                    }) {
+                    IconButton(onClick = { viewModel.launchWithLocalMods() }) {
                         Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = "Iniciar jogo")
                     }
                 }
@@ -164,6 +161,31 @@ fun MyModsScreen(
                 )
             }
         }
+    }
+
+    val launchState by viewModel.launch.collectAsStateWithLifecycle()
+    launchState?.let { progress ->
+        val failed = progress.stage == com.larp.launcher.domain.model.PatchProgress.Stage.Failed
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { if (failed) viewModel.dismissLaunch() },
+            title = { Text(if (failed) "Não foi possível iniciar" else "Carregando mods") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(text = progress.message, style = MaterialTheme.typography.bodyMedium)
+                    if (!failed) {
+                        androidx.compose.material3.LinearProgressIndicator(
+                            progress = { progress.progress.coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                if (failed) {
+                    androidx.compose.material3.TextButton(onClick = { viewModel.dismissLaunch() }) { Text("OK") }
+                }
+            }
+        )
     }
 
     editingMod?.let { target ->
