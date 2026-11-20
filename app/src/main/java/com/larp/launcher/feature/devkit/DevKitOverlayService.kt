@@ -20,7 +20,15 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.Toast
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.text.SpannableStringBuilder
+import android.text.style.ForegroundColorSpan
+import java.io.File
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -51,6 +59,8 @@ class DevKitOverlayService : Service() {
     @Inject lateinit var devKitBridge: DevKitBridge
     @Inject lateinit var catalogExtractor: DevKitCatalogExtractor
     @Inject lateinit var json: Json
+    @Inject lateinit var modCache: com.larp.launcher.data.local.cache.ModCacheManager
+    @Inject lateinit var console: com.larp.launcher.core.console.Console
 
     private lateinit var windowManager: WindowManager
     private lateinit var handler: Handler
@@ -109,7 +119,7 @@ class DevKitOverlayService : Service() {
         scope.launch {
             variables = devKitStore.loadVariables()
             handler.post { showOverlay() }
-            catalogExtractor.start(scope)
+            if (isDevKitEnabled(this@DevKitOverlayService)) catalogExtractor.start(scope)
             startRefreshLoop()
         }
     }
@@ -134,6 +144,11 @@ class DevKitOverlayService : Service() {
         handler.post { updateOverlay(snapshot) }
     }
 
+    private var expanded = false
+    private var tab = 0
+    private var bodyView: TextView? = null
+    private var layoutParams: WindowManager.LayoutParams? = null
+
     private fun showOverlay() {
         if (overlayView != null) return
         if (!Settings.canDrawOverlays(this)) {
@@ -145,105 +160,202 @@ class DevKitOverlayService : Service() {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         else
             @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
-
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             type,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         )
         params.gravity = Gravity.TOP or Gravity.START
         params.x = 16
         params.y = 120
+        layoutParams = params
+        val root = FrameLayout(this)
+        overlayView = root
+        runCatching { windowManager.addView(root, params) }
+            .onFailure { Log.e(TAG, "Falha ao adicionar overlay: ${it.message}") }
+        render()
+    }
 
-        val container = LinearLayout(this).apply {
+    private fun label(text: String, color: String, size: Float = 11f, onClick: (() -> Unit)? = null): TextView =
+        TextView(this).apply {
+            this.text = text
+            setTextColor(Color.parseColor(color))
+            textSize = size
+            setPadding(dp(8), dp(6), dp(8), dp(6))
+            if (onClick != null) setOnClickListener { onClick() }
+        }
+
+    private fun render() {
+        val root = overlayView as? FrameLayout ?: return
+        val params = layoutParams ?: return
+        root.removeAllViews()
+        if (!expanded) {
+            val bubble = TextView(this).apply {
+                text = "L"
+                gravity = Gravity.CENTER
+                setTextColor(Color.WHITE)
+                textSize = 16f
+                typeface = Typeface.DEFAULT_BOLD
+                setBackgroundColor(Color.parseColor("#CC5B3FD1"))
+                setOnTouchListener(DragHandler(windowManager, root, params) { expanded = true; render() })
+            }
+            root.addView(bubble, FrameLayout.LayoutParams(dp(40), dp(40)))
+            runCatching { windowManager.updateViewLayout(root, params) }
+            return
+        }
+        val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#EE0D1117"))
-            setPadding(12, 12, 12, 12)
+            setBackgroundColor(Color.parseColor("#F00D1117"))
+            setPadding(dp(6), dp(6), dp(6), dp(6))
         }
-        val title = TextView(this).apply {
-            text = "Dev Kit"
-            setTextColor(Color.WHITE)
-            textSize = 11f
-            typeface = Typeface.DEFAULT_BOLD
-            setPadding(0, 0, 0, 4)
+        val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        val title = label("Larp Dev Menu", "#FFFFFF", 12f).apply { typeface = Typeface.DEFAULT_BOLD }
+        title.setOnTouchListener(DragHandler(windowManager, root, params, null))
+        header.addView(title, LinearLayout.LayoutParams(0, WindowManager.LayoutParams.WRAP_CONTENT, 1f))
+        header.addView(label("—", "#FFA0A0A0", 14f) { expanded = false; render() })
+        panel.addView(header)
+        val names = listOf("Mods", "Logs", "Dev", "Ações")
+        val tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        names.forEachIndexed { i, n ->
+            tabs.addView(label(n, if (i == tab) "#FF58A6FF" else "#FFA0A0A0") { tab = i; render() })
         }
-        val body = TextView(this).apply {
-            text = "Carregando…"
-            setTextColor(Color.parseColor("#FFA0A0A0"))
-            textSize = 10f
-            typeface = Typeface.MONOSPACE
-            setPadding(0, 0, 0, 4)
-            setTextIsSelectable(true)
+        panel.addView(tabs)
+        if (tab == 3) {
+            val actions = listOf<Pair<String, () -> Unit>>(
+                "Reiniciar jogo (recarrega mods)" to { restartGame(null) },
+                "Reiniciar sem mods" to { restartGame(true) },
+                "Sair do jogo" to { quitGame() },
+                "Copiar logs" to { copyLogs() },
+                "Extrair catálogo (Dev Kit)" to { catalogExtractor.stop(); catalogExtractor.start(scope, true) },
+                "Abrir no app" to { openInApp() },
+                "Fechar este menu" to { stopSelf() }
+            )
+            val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            actions.forEach { (n, f) -> col.addView(label(n, "#FFFFA657", 12f) { f() }) }
+            panel.addView(ScrollView(this).apply { addView(col) }, LinearLayout.LayoutParams(dp(300), dp(220)))
+            bodyView = null
+        } else {
+            val body = TextView(this).apply {
+                setTextColor(Color.parseColor("#FFD0D0D0"))
+                textSize = 10f
+                typeface = Typeface.MONOSPACE
+                setTextIsSelectable(true)
+                setPadding(dp(4), dp(4), dp(4), dp(4))
+            }
+            bodyView = body
+            panel.addView(ScrollView(this).apply { addView(body) }, LinearLayout.LayoutParams(dp(300), dp(220)))
+            refreshBody()
         }
-        val buttonRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.END
+        root.addView(panel)
+        runCatching { windowManager.updateViewLayout(root, params) }
+    }
+
+    private fun colorize(lines: List<String>): CharSequence {
+        val sb = SpannableStringBuilder()
+        lines.forEach { line ->
+            val start = sb.length
+            sb.append(line).append('\n')
+            val color = when {
+                line.contains("Error", true) || line.contains("Fatal", true) || line.contains("Exception") || line.contains("Failed", true) || line.contains("Falha", true) || line.contains("✖") -> "#FFFF7B72"
+                line.contains("Warn", true) || line.contains("Aviso", true) -> "#FFE3B341"
+                else -> null
+            }
+            if (color != null) sb.setSpan(ForegroundColorSpan(Color.parseColor(color)), start, sb.length, 0)
         }
-        val openBtn = TextView(this).apply {
-            text = "Abrir no app"
-            setTextColor(Color.parseColor("#FF58A6FF"))
-            textSize = 10f
-            setPadding(8, 4, 8, 4)
-            setOnClickListener { openInApp() }
-        }
-        val refreshBtn = TextView(this).apply {
-            text = "Atualizar"
-            setTextColor(Color.parseColor("#FF7EE787"))
-            textSize = 10f
-            setPadding(8, 4, 8, 4)
-            setOnClickListener {
-                scope.launch { refreshOnce() }
+        return sb
+    }
+
+    private fun bepinexLog(): File? {
+        val dir = modCache.bepinexDir()
+        return listOf(File(dir, "LogOutput.log"), File(dir, "logs/LogOutput.log"), File(dir, "BepInEx/LogOutput.log"))
+            .firstOrNull { it.isFile }
+    }
+
+    private fun tailLog(max: Int): List<String> =
+        runCatching { bepinexLog()?.readLines()?.takeLast(max) }.getOrNull().orEmpty()
+
+    private fun modsLines(): List<String> {
+        val out = ArrayList<String>()
+        out += "Loader: etapa=${com.regis.boot.Boot.stage} ${com.regis.boot.Boot.message}"
+        val dotnet = modCache.dotnetDir()
+        out += "dotnet: " + if (File(dotnet, "System.Private.CoreLib.dll").isFile) "ok" else "Error: ausente"
+        out += "libcoreclr: " + if (File(dotnet, "libcoreclr.so").isFile || File(applicationInfo.nativeLibraryDir, "libcoreclr.so").isFile) "ok" else "Error: não encontrada"
+        out += "BepInEx core: " + if (File(modCache.bepinexDir(), "core/BepInEx.Core.dll").isFile) "ok" else "Error: ausente"
+        val plugins = modCache.bepinexPluginsDir().walkTopDown().filter { it.isFile && it.extension.equals("dll", true) }.toList()
+        out += "Plugins em disco: ${plugins.size}"
+        plugins.forEach { out += "  • ${it.name} (${it.length() / 1024} KB)" }
+        val log = tailLog(400)
+        val loaded = log.filter { it.contains("Loading [") }
+        out += "Carregados pelo BepInEx: ${loaded.size}"
+        loaded.takeLast(15).forEach { out += "  ✓ " + it.substringAfter("Loading ") }
+        val errors = log.filter { it.contains("[Error") || it.contains("[Fatal") || it.contains("Exception") }
+        out += "Erros: ${errors.size}"
+        errors.takeLast(12).forEach { out += "  ✖ $it" }
+        if (log.isEmpty()) out += "Aviso: LogOutput.log ainda não existe"
+        com.regis.boot.Boot.lines().takeLast(8).forEach { out += "boot: $it" }
+        return out
+    }
+
+    private fun logsLines(): List<String> {
+        val log = tailLog(80)
+        if (log.isNotEmpty()) return log
+        return console.entries.value.takeLast(60).map { "${console.formatTimestamp(it)} ${it.level.name.first()} ${it.tag}: ${it.message}" }
+    }
+
+    private fun devLines(): List<String> {
+        val snap = latestSnapshot
+        val out = ArrayList<String>()
+        out += "Catálogo: ${devKitStore.catalogStatus()}"
+        if (snap == null || snap.values.isEmpty()) {
+            out += "Nenhuma variável ativa."
+        } else {
+            snap.values.take(12).forEach {
+                out += if (it.error != null) "${it.name}: Error ${it.error}" else "${it.name} [${it.address}] = ${it.rawHex}"
             }
         }
-        val extractBtn = TextView(this).apply {
-            text = "Extrair"
-            setTextColor(Color.parseColor("#FFFFA657"))
-            textSize = 10f
-            setPadding(8, 4, 8, 4)
-            setOnClickListener {
-                catalogExtractor.stop()
-                catalogExtractor.start(scope, true)
-            }
+        return out
+    }
+
+    private fun refreshBody() {
+        val body = bodyView ?: return
+        val lines = when (tab) {
+            0 -> modsLines()
+            1 -> logsLines()
+            else -> devLines()
         }
-        buttonRow.addView(extractBtn)
-        buttonRow.addView(refreshBtn)
-        buttonRow.addView(openBtn)
+        body.text = colorize(lines)
+    }
 
-        container.addView(title)
-        container.addView(body)
-        container.addView(buttonRow)
+    private fun copyLogs() {
+        val text = (modsLines() + logsLines()).joinToString("\n")
+        val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+        cm.setPrimaryClip(ClipData.newPlainText("larp-logs", text))
+        Toast.makeText(this, "Logs copiados", Toast.LENGTH_SHORT).show()
+    }
 
-        params.width = dp(220)
-        params.height = WindowManager.LayoutParams.WRAP_CONTENT
+    private fun quitGame() {
+        com.larp.launcher.feature.launcher.GameActivity.finishGame()
+        handler.postDelayed({ android.os.Process.killProcess(android.os.Process.myPid()) }, 400)
+    }
 
-        container.setOnTouchListener(DragHandler(windowManager, container, params))
-
-        runCatching {
-            windowManager.addView(container, params)
-            overlayView = container
-        }.onFailure { Log.e(TAG, "Falha ao adicionar overlay: ${it.message}") }
+    private fun restartGame(noMods: Boolean?) {
+        val target = com.larp.launcher.feature.launcher.GameActivity.relaunchIntent(noMods)
+        if (target == null) {
+            Toast.makeText(this, "Jogo não encontrado", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val broadcast = Intent(GameRelaunchReceiver.ACTION).apply {
+            setClassName(packageName, GameRelaunchReceiver::class.java.name)
+            putExtra(GameRelaunchReceiver.EXTRA_TARGET, target)
+        }
+        sendBroadcast(broadcast)
+        handler.postDelayed({ android.os.Process.killProcess(android.os.Process.myPid()) }, 300)
     }
 
     private fun updateOverlay(snapshot: DevKitSnapshot) {
-        val view = overlayView as? LinearLayout ?: return
-        val body = view.getChildAt(1) as? TextView ?: return
-        if (snapshot.values.isEmpty()) {
-            body.text = "Nenhuma variável ativa.\nCatálogo: ${devKitStore.catalogStatus()}\nAbra o Dev Kit no app para buscar e adicionar."
-            return
-        }
-        val sb = StringBuilder()
-        snapshot.values.take(8).forEach { v ->
-            val line = if (v.error != null) {
-                "${v.name}: ${v.error}"
-            } else {
-                "${v.name} [${v.address}]\n  = ${v.rawHex}"
-            }
-            sb.append(line).append('\n')
-        }
-        body.text = sb.toString().trimEnd()
+        if (expanded && tab != 3) refreshBody()
     }
 
     private fun openInApp() {
@@ -295,12 +407,14 @@ class DevKitOverlayService : Service() {
     private inner class DragHandler(
         private val windowManager: WindowManager,
         private val view: View,
-        private val params: WindowManager.LayoutParams
+        private val params: WindowManager.LayoutParams,
+        private val onTap: (() -> Unit)?
     ) : View.OnTouchListener {
         private var initialX = 0
         private var initialY = 0
         private var initialTouchX = 0f
         private var initialTouchY = 0f
+        private var moved = false
 
         override fun onTouch(v: View?, event: MotionEvent): Boolean {
             when (event.action) {
@@ -309,12 +423,20 @@ class DevKitOverlayService : Service() {
                     initialY = params.y
                     initialTouchX = event.rawX
                     initialTouchY = event.rawY
+                    moved = false
                     return true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    params.x = initialX + (event.rawX - initialTouchX).toInt()
-                    params.y = initialY + (event.rawY - initialTouchY).toInt()
+                    val dx = (event.rawX - initialTouchX).toInt()
+                    val dy = (event.rawY - initialTouchY).toInt()
+                    if (Math.abs(dx) > 8 || Math.abs(dy) > 8) moved = true
+                    params.x = initialX + dx
+                    params.y = initialY + dy
                     runCatching { windowManager.updateViewLayout(view, params) }
+                    return true
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (!moved) onTap?.invoke()
                     return true
                 }
             }

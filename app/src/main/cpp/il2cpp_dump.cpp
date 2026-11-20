@@ -158,6 +158,8 @@ using FieldGetOffset = size_t (*)(void*);
 using FieldGetType = void* (*)(void*);
 using FieldGetFlags = int (*)(void*);
 using ThreadAttach = void* (*)(void*);
+using ThreadCurrent = void* (*)();
+using ThreadDetach = void (*)(void*);
 using FreeFn = void (*)(void*);
 
 struct Api {
@@ -184,6 +186,8 @@ struct Api {
     FieldGetType fieldGetType = nullptr;
     FieldGetFlags fieldGetFlags = nullptr;
     ThreadAttach threadAttach = nullptr;
+    ThreadCurrent threadCurrent = nullptr;
+    ThreadDetach threadDetach = nullptr;
     FreeFn free = nullptr;
     uintptr_t moduleBase = 0;
     uintptr_t moduleEnd = 0;
@@ -224,6 +228,8 @@ bool bindApi(const SymbolTable& t, Api& a) {
     bind(t, "il2cpp_field_get_type", a.fieldGetType, false);
     bind(t, "il2cpp_field_get_flags", a.fieldGetFlags, false);
     bind(t, "il2cpp_thread_attach", a.threadAttach, false);
+    bind(t, "il2cpp_thread_current", a.threadCurrent, false);
+    bind(t, "il2cpp_thread_detach", a.threadDetach, false);
     bind(t, "il2cpp_free", a.free, false);
     a.moduleBase = t.bias;
     return ok;
@@ -282,89 +288,6 @@ std::string methodSignature(const Api& api, void* method) {
 
 std::atomic<bool> running{false};
 
-int dumpAll(const char* path, bool force) {
-    Module module;
-    dl_iterate_phdr(findModuleCallback, &module);
-    if (!module.found) return -1;
-
-    SymbolTable table;
-    if (!table.load(module)) return -2;
-    Api api;
-    if (!bindApi(table, api)) return -2;
-    api.moduleEnd = module.end;
-
-    void* domain = api.domainGet();
-    if (!domain) return -3;
-    if (api.threadAttach) api.threadAttach(domain);
-
-    size_t assemblyCount = 0;
-    void** assemblies = api.domainGetAssemblies(domain, &assemblyCount);
-    if (!assemblies || assemblyCount == 0) return -3;
-
-    bool hasGame = false;
-    for (size_t i = 0; i < assemblyCount; ++i) {
-        void* image = api.assemblyGetImage(assemblies[i]);
-        const char* name = image ? api.imageGetName(image) : nullptr;
-        if (name && strncmp(name, "Assembly-CSharp", 15) == 0) hasGame = true;
-    }
-    if (!hasGame && !force) return -4;
-
-    std::string partPath = std::string(path) + ".part";
-    FILE* file = fopen(partPath.c_str(), "w");
-    if (!file) return -5;
-
-    int lines = 0;
-    for (size_t i = 0; i < assemblyCount; ++i) {
-        void* image = api.assemblyGetImage(assemblies[i]);
-        if (!image) continue;
-        std::string imageName = clean(api.imageGetName(image));
-        size_t classCount = api.imageGetClassCount(image);
-        for (size_t c = 0; c < classCount; ++c) {
-            void* klass = api.imageGetClass(image, c);
-            if (!klass) continue;
-            std::string owner = ownerName(api, klass);
-            fprintf(file, "C\t%s\t%s\t%s\t\t0x%llx\t\t\n", imageName.c_str(), owner.c_str(),
-                    clean(api.classGetName(klass)).c_str(),
-                    static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(klass)));
-            ++lines;
-
-            void* iter = nullptr;
-            while (void* method = api.classGetMethods(klass, &iter)) {
-                uintptr_t pointer = *reinterpret_cast<uintptr_t*>(method);
-                bool isStatic = false;
-                if (api.methodGetFlags) {
-                    uint32_t implFlags = 0;
-                    isStatic = (api.methodGetFlags(method, &implFlags) & 0x10) != 0;
-                }
-                std::string signature = methodSignature(api, method);
-                if (pointer >= api.moduleBase && pointer < api.moduleEnd) {
-                    fprintf(file, "M\t%s\t%s\t%s\t%s\t0x%llx\t\t%s\n", imageName.c_str(), owner.c_str(),
-                            clean(api.methodGetName(method)).c_str(), signature.c_str(),
-                            static_cast<unsigned long long>(pointer - api.moduleBase), isStatic ? "S" : "");
-                } else {
-                    fprintf(file, "M\t%s\t%s\t%s\t%s\t\t\t%s\n", imageName.c_str(), owner.c_str(),
-                            clean(api.methodGetName(method)).c_str(), signature.c_str(), isStatic ? "S" : "");
-                }
-                ++lines;
-            }
-
-            iter = nullptr;
-            while (void* field = api.classGetFields(klass, &iter)) {
-                bool isStatic = api.fieldGetFlags && (api.fieldGetFlags(field) & 0x10) != 0;
-                std::string type = api.fieldGetType ? typeName(api, api.fieldGetType(field)) : "?";
-                fprintf(file, "F\t%s\t%s\t%s\t%s\t\t0x%zx\t%s\n", imageName.c_str(), owner.c_str(),
-                        clean(api.fieldGetName(field)).c_str(), type.c_str(),
-                        api.fieldGetOffset(field), isStatic ? "S" : "");
-                ++lines;
-            }
-        }
-    }
-    fclose(file);
-    if (rename(partPath.c_str(), path) != 0) return -5;
-    LOGI("catálogo extraído: %d entradas", lines);
-    return lines;
-}
-
 thread_local sigjmp_buf* g_jump = nullptr;
 struct sigaction g_old[3];
 const int kSignals[3] = {SIGSEGV, SIGBUS, SIGABRT};
@@ -390,6 +313,176 @@ void faultHandler(int sig, siginfo_t* info, void* ctx) {
     raise(sig);
 }
 
+void appendClass(const Api& api, const std::string& imageName, void* klass, std::string& out, int& lines) {
+    char buf[1024];
+    std::string owner = ownerName(api, klass);
+    snprintf(buf, sizeof(buf), "C\t%s\t%s\t%s\t\t0x%llx\t\t\n", imageName.c_str(), owner.c_str(),
+             clean(api.classGetName(klass)).c_str(),
+             static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(klass)));
+    out += buf;
+    ++lines;
+
+    void* iter = nullptr;
+    while (void* method = api.classGetMethods(klass, &iter)) {
+        uintptr_t pointer = *reinterpret_cast<uintptr_t*>(method);
+        bool isStatic = false;
+        if (api.methodGetFlags) {
+            uint32_t implFlags = 0;
+            isStatic = (api.methodGetFlags(method, &implFlags) & 0x10) != 0;
+        }
+        std::string signature = methodSignature(api, method);
+        std::string name = clean(api.methodGetName(method));
+        if (pointer >= api.moduleBase && pointer < api.moduleEnd) {
+            snprintf(buf, sizeof(buf), "M\t%s\t%s\t%s\t%s\t0x%llx\t\t%s\n", imageName.c_str(), owner.c_str(),
+                     name.c_str(), signature.c_str(),
+                     static_cast<unsigned long long>(pointer - api.moduleBase), isStatic ? "S" : "");
+        } else {
+            snprintf(buf, sizeof(buf), "M\t%s\t%s\t%s\t%s\t\t\t%s\n", imageName.c_str(), owner.c_str(),
+                     name.c_str(), signature.c_str(), isStatic ? "S" : "");
+        }
+        out += buf;
+        ++lines;
+    }
+
+    iter = nullptr;
+    while (void* field = api.classGetFields(klass, &iter)) {
+        bool isStatic = api.fieldGetFlags && (api.fieldGetFlags(field) & 0x10) != 0;
+        std::string type = api.fieldGetType ? typeName(api, api.fieldGetType(field)) : "?";
+        std::string name = clean(api.fieldGetName(field));
+        snprintf(buf, sizeof(buf), "F\t%s\t%s\t%s\t%s\t\t0x%zx\t%s\n", imageName.c_str(), owner.c_str(),
+                 name.c_str(), type.c_str(), api.fieldGetOffset(field), isStatic ? "S" : "");
+        out += buf;
+        ++lines;
+    }
+}
+
+__attribute__((noinline)) bool guardedClass(const Api& api, const std::string& imageName, void* klass, std::string& out, int& lines) {
+    size_t mark = out.size();
+    int before = lines;
+    sigjmp_buf jump;
+    bool ok = true;
+    if (sigsetjmp(jump, 1) == 0) {
+        g_jump = &jump;
+        try {
+            appendClass(api, imageName, klass, out, lines);
+        } catch (...) {
+            ok = false;
+        }
+    } else {
+        ok = false;
+    }
+    g_jump = nullptr;
+    if (!ok) {
+        out.resize(mark);
+        lines = before;
+    }
+    return ok;
+}
+
+__attribute__((noinline)) size_t guardedClassCount(const Api& api, void* image) {
+    sigjmp_buf jump;
+    size_t count = 0;
+    if (sigsetjmp(jump, 1) == 0) {
+        g_jump = &jump;
+        count = api.imageGetClassCount(image);
+    } else {
+        count = 0;
+    }
+    g_jump = nullptr;
+    return count;
+}
+
+__attribute__((noinline)) void* guardedImageClass(const Api& api, void* image, size_t index) {
+    sigjmp_buf jump;
+    void* klass = nullptr;
+    if (sigsetjmp(jump, 1) == 0) {
+        g_jump = &jump;
+        klass = api.imageGetClass(image, index);
+    } else {
+        klass = nullptr;
+    }
+    g_jump = nullptr;
+    return klass;
+}
+
+int dumpAll(const char* path, bool force) {
+    Module module;
+    dl_iterate_phdr(findModuleCallback, &module);
+    if (!module.found) return -1;
+
+    SymbolTable table;
+    if (!table.load(module)) return -2;
+    Api api;
+    if (!bindApi(table, api)) return -2;
+    api.moduleEnd = module.end;
+
+    void* domain = api.domainGet();
+    if (!domain) return -3;
+
+    void* attached = nullptr;
+    bool weAttached = false;
+    if (api.threadAttach) {
+        void* current = api.threadCurrent ? api.threadCurrent() : nullptr;
+        if (!current) {
+            attached = api.threadAttach(domain);
+            weAttached = attached != nullptr;
+        }
+    }
+
+    size_t assemblyCount = 0;
+    void** assemblies = api.domainGetAssemblies(domain, &assemblyCount);
+    int result = -3;
+    if (assemblies && assemblyCount > 0) {
+        bool hasGame = false;
+        for (size_t i = 0; i < assemblyCount; ++i) {
+            void* image = api.assemblyGetImage(assemblies[i]);
+            const char* name = image ? api.imageGetName(image) : nullptr;
+            if (name && strncmp(name, "Assembly-CSharp", 15) == 0) hasGame = true;
+        }
+        if (!hasGame && !force) {
+            result = -4;
+        } else {
+            std::string out;
+            out.reserve(1 << 22);
+            int lines = 0;
+            int skipped = 0;
+            for (size_t i = 0; i < assemblyCount; ++i) {
+                void* image = api.assemblyGetImage(assemblies[i]);
+                if (!image) continue;
+                std::string imageName = clean(api.imageGetName(image));
+                size_t classCount = guardedClassCount(api, image);
+                for (size_t c = 0; c < classCount; ++c) {
+                    void* klass = guardedImageClass(api, image, c);
+                    if (!klass) { ++skipped; continue; }
+                    if (!guardedClass(api, imageName, klass, out, lines)) ++skipped;
+                }
+            }
+            if (skipped > 0) LOGW("classes ignoradas por falha nativa: %d", skipped);
+            if (lines == 0) {
+                result = -7;
+            } else {
+                std::string partPath = std::string(path) + ".part";
+                FILE* file = fopen(partPath.c_str(), "w");
+                if (!file) {
+                    result = -5;
+                } else {
+                    size_t written = fwrite(out.data(), 1, out.size(), file);
+                    fclose(file);
+                    if (written != out.size() || rename(partPath.c_str(), path) != 0) {
+                        result = -5;
+                    } else {
+                        LOGI("catálogo extraído: %d entradas (%d ignoradas)", lines, skipped);
+                        result = lines;
+                    }
+                }
+            }
+        }
+    }
+
+    if (weAttached && api.threadDetach) api.threadDetach(attached);
+    return result;
+}
+
 int guardedDump(const char* path, bool force) {
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
@@ -398,21 +491,13 @@ int guardedDump(const char* path, bool force) {
     sigemptyset(&sa.sa_mask);
     for (int i = 0; i < 3; ++i) sigaction(kSignals[i], &sa, &g_old[i]);
 
-    sigjmp_buf jump;
     int result = -7;
-    if (sigsetjmp(jump, 1) == 0) {
-        g_jump = &jump;
-        try {
-            result = dumpAll(path, force);
-        } catch (...) {
-            LOGW("exceção do IL2CPP durante o dump");
-            result = -7;
-        }
-    } else {
-        LOGW("dump abortado por falha nativa; ignorando");
+    try {
+        result = dumpAll(path, force);
+    } catch (...) {
+        LOGW("exceção do IL2CPP durante o dump");
         result = -7;
     }
-    g_jump = nullptr;
     for (int i = 0; i < 3; ++i) sigaction(kSignals[i], &g_old[i], nullptr);
     return result;
 }

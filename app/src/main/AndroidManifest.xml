@@ -126,6 +126,10 @@
         </provider>
 
         <receiver
+            android:name=".feature.devkit.GameRelaunchReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".feature.voice.VoiceCallReceiver"
             android:exported="false" />
 

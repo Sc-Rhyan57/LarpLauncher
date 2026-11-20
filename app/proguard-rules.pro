@@ -36,3 +36,7 @@
 
 # Larp hook engine
 -keep class com.larp.launcher.hook.** { *; }
+
+-keep class com.regis.boot.** { *; }
+-keep class com.larp.launcher.boot.** { *; }
+-keepclasseswithmembernames class * { native <methods>; }

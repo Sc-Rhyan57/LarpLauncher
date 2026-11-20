@@ -48,6 +48,7 @@ class GameActivity : ComponentActivity() {
     private var diario: Diario? = null
     private var devKitStarted: Boolean = false
     private var resumed: Boolean = false
+    @Volatile private var elapsedSkip: Boolean = false
 
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(base)
@@ -68,6 +69,7 @@ class GameActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         setTheme(android.R.style.Theme_Material_NoActionBar)
         super.onCreate(savedInstanceState)
+        current = java.lang.ref.WeakReference(this)
         java.io.File(filesDir, ERROR_FILE).delete()
         val e = env
         if (e == null) {
@@ -200,6 +202,7 @@ class GameActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        if (current?.get() === this) current = null
         callPlayer("destroy")
         if (devKitStarted) {
             runCatching { baseContext.stopService(launcherServiceIntent(DevKitOverlayService::class.java)) }
@@ -247,7 +250,7 @@ class GameActivity : ComponentActivity() {
     private fun maybeStartDevKitOverlay() {
         if (devKitStarted) return
         val enabled = DevKitOverlayService.isDevKitEnabled(this)
-        if (!enabled) return
+        if (!enabled && !modsLoaded) return
         if (!android.provider.Settings.canDrawOverlays(this)) {
             Log.w(TAG, "Dev Kit ativo mas SYSTEM_ALERT_WINDOW não concedido")
             return
@@ -355,9 +358,6 @@ class GameActivity : ComponentActivity() {
         addContentView(overlay, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        val bootClass = runCatching { playerClass?.classLoader?.loadClass("com.larp.boot.Boot") }.getOrNull() ?: Boot::class.java
-        val stageField = runCatching { bootClass.getDeclaredField("stage").apply { isAccessible = true } }.getOrNull()
-        val messageField = runCatching { bootClass.getDeclaredField("message").apply { isAccessible = true } }.getOrNull()
         val handler = Handler(Looper.getMainLooper())
         val start = SystemClock.uptimeMillis()
         val d = Diario.begin(this)
@@ -366,8 +366,13 @@ class GameActivity : ComponentActivity() {
         val tick = object : Runnable {
             var shown = 0
             override fun run() {
-                val stage = runCatching { stageField?.getInt(null) }.getOrNull() ?: Boot.stage
-                val msg = runCatching { messageField?.get(null)?.toString() }.getOrNull() ?: Boot.message
+                if (elapsedSkip) {
+                    runBlocking { d.finish("ignorado") }
+                    (overlay.parent as? ViewGroup)?.removeView(overlay)
+                    return
+                }
+                val stage = Boot.stage
+                val msg = Boot.message
                 val elapsed = SystemClock.uptimeMillis() - start
                 runBlocking { d.step("stage=$stage msg=$msg") }
                 if (stage < 2 && elapsed <= MAX_WAIT_MS && !isFinishing) {
@@ -379,6 +384,10 @@ class GameActivity : ComponentActivity() {
                         val mins = elapsed / 60000
                         status.text = if (isPt) "Isso só acontece na primeira vez e quando o jogo atualiza. Pode levar alguns minutos em celulares simples: não saia do app." + (if (mins >= 1) "\n$mins min" else "")
                         else "This only happens the first time and when the game updates. It can take a few minutes on simpler phones: don't leave the app." + (if (mins >= 1) "\n$mins min" else "")
+                    }
+                    if (elapsed > SKIP_AFTER_MS) {
+                        status.text = if (isPt) "Toque na tela para fechar este aviso e entrar no jogo." else "Tap the screen to dismiss this and enter the game."
+                        overlay.setOnClickListener { elapsedSkip = true }
                     }
                     handler.postDelayed(this, 200)
                     return
@@ -434,6 +443,23 @@ class GameActivity : ComponentActivity() {
         private const val EXTRA_FRIDA = "frida"
         const val DEFAULT_GAME_PACKAGE = "com.innersloth.spacemafia"
         private const val MAX_WAIT_MS = 1_200_000L
+        private const val SKIP_AFTER_MS = 20_000L
+
+        @Volatile var current: java.lang.ref.WeakReference<GameActivity>? = null
+
+        fun relaunchIntent(noMods: Boolean?): Intent? {
+            val activity = current?.get() ?: return null
+            val base = Intent(activity.intent)
+            if (noMods != null) base.putExtra(EXTRA_NO_MODS, noMods)
+            if (noMods == true) base.putExtra(EXTRA_FRIDA, false)
+            base.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            base.component = android.content.ComponentName(activity.baseContext.packageName, GameActivity::class.java.name)
+            return base
+        }
+
+        fun finishGame() {
+            current?.get()?.let { runCatching { it.finishAndRemoveTask() } }
+        }
 
         fun newIntent(context: Context, gamePackage: String, privateMods: Boolean, noMods: Boolean = false, frida: Boolean = false): Intent =
             Intent(context, GameActivity::class.java).apply {

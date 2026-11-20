@@ -110,8 +110,17 @@ class ModRuntime @Inject constructor(
         setenv("FUSION_APP_DATA_DIR", File(externalFiles, "dados").absolutePath)
         setenv("FUSION_UNITY_VERSION", unityVersion)
         setenv("DOTNET_GCConserveMemory", "7")
+        val libDirs = listOf(
+            dotnetDir.absolutePath,
+            context.filesDir.resolve("native").absolutePath,
+            launcherLibDir,
+            gameEnv.nativeLibraryDir
+        ).distinct().joinToString(":")
         setenv("LARP_DOTNET_DIR", dotnetDir.absolutePath)
-        setenv("LARP_LIB_DIRS", "$launcherLibDir:${gameEnv.nativeLibraryDir}")
+        setenv("LARP_LIB_DIRS", libDirs)
+        setenv("REGIS_DOTNET_DIR", dotnetDir.absolutePath)
+        setenv("REGIS_LIB_DIRS", libDirs)
+        setenv("FUSION_LOG_DIR", bepinexDir.absolutePath)
         setenv("HOME", context.filesDir.absolutePath)
         setenv("TMPDIR", context.cacheDir.absolutePath)
         setenv("DOTNET_EnableWriteXorExecute", "0")

@@ -38,14 +38,16 @@ class Console @Inject constructor(
     private val _entries = MutableStateFlow<List<ConsoleEntry>>(emptyList())
     val entries: StateFlow<List<ConsoleEntry>> = _entries.asStateFlow()
 
+    private val lock = Any()
+
     private val logFile: File
         get() {
             val dir = File(context.filesDir, "console").apply { mkdirs() }
-            return File(dir, "log.json")
+            return File(dir, "log.jsonl")
         }
 
     init {
-        loadFromDisk()
+        reload()
     }
 
     fun v(tag: String, msg: String) = append(ConsoleEntry.Level.Verbose, tag, msg)
@@ -55,8 +57,25 @@ class Console @Inject constructor(
     fun e(tag: String, msg: String, t: Throwable? = null) = append(ConsoleEntry.Level.Error, tag, msg, t)
 
     fun clear() {
-        _entries.value = emptyList()
-        kotlinx.coroutines.runBlocking { persist() }
+        synchronized(lock) {
+            runCatching { logFile.writeText("") }
+            _entries.value = emptyList()
+        }
+    }
+
+    fun reload() {
+        synchronized(lock) {
+            runCatching {
+                val file = logFile
+                if (!file.isFile) return@runCatching
+                val lines = file.readLines().takeLast(maxEntries)
+                val list = lines.mapNotNull { line ->
+                    runCatching { json.decodeFromString(ConsoleEntry.serializer(), line) }.getOrNull()
+                }
+                if (list != _entries.value) _entries.value = list
+                if (file.length() > MAX_FILE_BYTES) file.writeText(lines.joinToString("\n", postfix = "\n"))
+            }
+        }
     }
 
     fun formatTimestamp(entry: ConsoleEntry): String = dateFormat.format(Date(entry.timestamp))
@@ -69,12 +88,17 @@ class Console @Inject constructor(
             message = msg,
             throwable = t?.let { unwrap(it).stackTraceToString().take(2000) }
         )
-        val current = _entries.value.toMutableList()
-        current.add(entry)
-        if (current.size > maxEntries) {
-            current.subList(0, current.size - maxEntries).clear()
+        synchronized(lock) {
+            val current = _entries.value.toMutableList()
+            current.add(entry)
+            if (current.size > maxEntries) {
+                current.subList(0, current.size - maxEntries).clear()
+            }
+            _entries.value = current
+            runCatching {
+                logFile.appendText(json.encodeToString(ConsoleEntry.serializer(), entry).replace('\n', ' ') + "\n")
+            }
         }
-        _entries.value = current
         when (level) {
             ConsoleEntry.Level.Verbose -> Log.v(tag, msg)
             ConsoleEntry.Level.Debug -> Log.d(tag, msg)
@@ -82,28 +106,15 @@ class Console @Inject constructor(
             ConsoleEntry.Level.Warn -> Log.w(tag, msg, t)
             ConsoleEntry.Level.Error -> Log.e(tag, msg, t)
         }
-        kotlinx.coroutines.runBlocking { persist() }
-    }
-
-    private suspend fun persist() {
-        withContext(Dispatchers.IO) {
-            runCatching {
-                logFile.writeText(json.encodeToString(ListSerializer(ConsoleEntry.serializer()), _entries.value))
-            }
-        }
-    }
-
-    private fun loadFromDisk() {
-        runCatching {
-            if (!logFile.isFile) return@runCatching
-            val list = json.decodeFromString(ListSerializer(ConsoleEntry.serializer()), logFile.readText())
-            _entries.value = list
-        }
     }
 
     private fun unwrap(t: Throwable): Throwable {
         var cur: Throwable = t
         while (cur.cause != null && cur.cause !== cur) cur = cur.cause!!
         return cur
+    }
+
+    private companion object {
+        const val MAX_FILE_BYTES = 1_000_000L
     }
 }
