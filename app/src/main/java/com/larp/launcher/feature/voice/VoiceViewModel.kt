@@ -1,10 +1,13 @@
 package com.larp.launcher.feature.voice
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.larp.launcher.core.console.Console
 import com.larp.launcher.data.repository.AuthRepository
 import com.larp.launcher.domain.model.RoomParticipant
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,7 +27,9 @@ data class VoiceUiState(
 
 @HiltViewModel
 class VoiceViewModel @Inject constructor(
-    private val authRepository: AuthRepository
+    @ApplicationContext private val context: Context,
+    private val authRepository: AuthRepository,
+    private val console: Console
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(VoiceUiState())
@@ -32,6 +37,7 @@ class VoiceViewModel @Inject constructor(
 
     fun connect(roomId: String) {
         if (_state.value.connecting || _state.value.connected) return
+        console.i("Voice", "Conectando na sala: $roomId")
         _state.update {
             it.copy(
                 connecting = true,
@@ -72,7 +78,10 @@ class VoiceViewModel @Inject constructor(
                         participants = participants
                     )
                 }
+                FloatingVoiceBubbleService.show(context)
+                console.i("Voice", "Conectado; bolinha flutuante iniciada")
             } catch (t: Throwable) {
+                console.e("Voice", "Falha ao conectar", t)
                 _state.update {
                     it.copy(
                         connecting = false,
@@ -84,6 +93,8 @@ class VoiceViewModel @Inject constructor(
     }
 
     fun disconnect() {
+        console.i("Voice", "Desconectando e fechando bolinha")
+        FloatingVoiceBubbleService.hide(context)
         _state.update {
             it.copy(
                 connected = false,
@@ -97,8 +108,10 @@ class VoiceViewModel @Inject constructor(
     }
 
     fun toggleMute() {
+        val newMuted = !_state.value.muted
+        console.d("Voice", "Toggle mute → $newMuted")
+        FloatingVoiceBubbleService.toggleMute(context)
         _state.update {
-            val newMuted = !it.muted
             it.copy(
                 muted = newMuted,
                 participants = it.participants.map { p ->
@@ -111,4 +124,12 @@ class VoiceViewModel @Inject constructor(
             )
         }
     }
+
+    override fun onCleared() {
+        if (_state.value.connected) {
+            FloatingVoiceBubbleService.hide(context)
+        }
+        super.onCleared()
+    }
 }
+

@@ -25,22 +25,17 @@ import com.larp.launcher.diagnostics.Diario
 import com.larp.launcher.patcher.GameContext
 import com.larp.launcher.patcher.GameEnv
 import com.larp.launcher.patcher.ModRuntime
-import dagger.hilt.EntryPoint
-import dagger.hilt.InstallIn
-import dagger.hilt.android.EntryPointAccessors
-import dagger.hilt.components.SingletonComponent
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.runBlocking
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Proxy
 import java.util.Locale
+import javax.inject.Inject
 
-@EntryPoint
-@InstallIn(SingletonComponent::class)
-interface GameActivityEntryPoint {
-    fun modRuntime(): ModRuntime
-}
-
+@AndroidEntryPoint
 class GameActivity : Activity() {
+
+    @Inject lateinit var modRuntime: ModRuntime
 
     private var env: GameEnv? = null
     private var appContext: GameContext? = null
@@ -97,12 +92,30 @@ class GameActivity : Activity() {
         setContentView(view)
         view.requestFocus()
         if (modsLoaded) showProgress()
+        loadEosSdkSafely(classLoader)
+        Log.i(TAG, "UnityPlayer criado")
+    }
+
+    private fun loadEosSdkSafely(classLoader: ClassLoader) {
+        runCatching {
+            val paths = System.getProperty("java.library.path").orEmpty().split(File.pathSeparator)
+            val candidates = listOf("libEOSSDK.so", "libepicgames-eossdk.so", "libeossdk.so")
+            val found = candidates.firstNotNullOf { name ->
+                paths.firstOrNull { path ->
+                    File(path, name).isFile
+                }?.let { name }
+            }
+            if (found != null) {
+                runCatching { System.loadLibrary(found.removePrefix("lib").removeSuffix(".so")) }
+            }
+        }
         runCatching {
             classLoader.loadClass("com.epicgames.mobile.eossdk.EOSSDK")
                 .getMethod("init", Activity::class.java)
                 .invoke(null, this)
+        }.onFailure { t ->
+            Log.w(TAG, "EOSSDK init falhou (jogo pode rodar sem EOS): ${t.message}")
         }
-        Log.i(TAG, "UnityPlayer criado")
     }
 
     private fun loadMods(env: GameEnv) {
@@ -116,7 +129,6 @@ class GameActivity : Activity() {
                 sourceDir = env.appInfo.sourceDir ?: "",
                 isInstalled = true
             )
-            val modRuntime = EntryPointAccessors.fromApplication(application, GameActivityEntryPoint::class.java).modRuntime()
             val ok = runBlocking { modRuntime.prepare(domainEnv, privateMods) }
             if (ok) {
                 Boot.load("fusion")

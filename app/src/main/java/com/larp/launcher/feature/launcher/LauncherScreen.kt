@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -75,6 +76,7 @@ fun LauncherScreen(
         QuickAccess(LarpDestination.Malum, "Malum", Icons.Filled.MenuBook),
         QuickAccess(LarpDestination.MyMods, "Meus Mods", Icons.Filled.Storage),
         QuickAccess(LarpDestination.Frida, "Frida Mods", Icons.Filled.Code),
+        QuickAccess(LarpDestination.Console, "Console", Icons.Filled.Terminal),
         QuickAccess(LarpDestination.Settings, "Ajustes", Icons.Filled.Settings)
     )
 

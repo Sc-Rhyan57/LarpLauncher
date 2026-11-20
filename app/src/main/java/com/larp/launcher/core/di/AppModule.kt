@@ -2,6 +2,7 @@ package com.larp.launcher.core.di
 
 import android.content.Context
 import com.larp.launcher.core.LarpEnvProvider
+import com.larp.launcher.core.console.Console
 import com.larp.launcher.data.local.cache.ModCacheManager
 import com.larp.launcher.data.local.db.LarpDatabase
 import com.larp.launcher.data.local.prefs.AuthPrefs
@@ -50,4 +51,11 @@ object AppModule {
         @ApplicationContext context: Context,
         json: kotlinx.serialization.json.Json
     ): LarpEnvProvider = LarpEnvProvider.get(context, json)
+
+    @Provides
+    @Singleton
+    fun provideConsole(
+        @ApplicationContext context: Context,
+        json: kotlinx.serialization.json.Json
+    ): Console = Console(context, json)
 }

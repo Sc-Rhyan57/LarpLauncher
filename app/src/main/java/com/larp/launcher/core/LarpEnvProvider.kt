@@ -28,8 +28,8 @@ data class LarpEnv(
     val fcmSenderId: String = ""
 ) {
     companion object {
-        const val DEFAULT_API_URL = "https://larp-api.workers.dev"
-        const val DEFAULT_WS_URL = "wss://larp-api.workers.dev"
+        const val DEFAULT_API_URL = "https://larp-relaxxx.rhyanlus501-b24.workers.dev"
+        const val DEFAULT_WS_URL = "wss://larp-relaxxx.rhyanlus501-b24.workers.dev"
     }
 }
 

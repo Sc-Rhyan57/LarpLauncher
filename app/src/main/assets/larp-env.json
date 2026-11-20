@@ -1,6 +1,6 @@
 {
-  "apiUrl": "https://larp-api.workers.dev",
-  "wsUrl": "wss://larp-api.workers.dev",
+  "apiUrl": "https://larp-relaxxx.rhyanlus501-b24.workers.dev",
+  "wsUrl": "wss://larp-relaxxx.rhyanlus501-b24.workers.dev",
   "discordClientId": "",
   "discordRedirectUri": "com.larp.launcher://oauth",
   "discordScope": "identify email guilds",
