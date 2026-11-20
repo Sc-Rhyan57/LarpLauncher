@@ -31,6 +31,8 @@ turbine = "1.2.0"
 coroutinesTest = "1.9.0"
 accompanistPermissions = "0.36.0"
 browser = "1.8.0"
+shadowhook = "1.1.1"
+bytehook = "1.0.4"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -85,6 +87,9 @@ androidx-media3-common = { group = "androidx.media3", name = "media3-common", ve
 androidx-work-runtime = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "workManager" }
 
 accompanist-permissions = { group = "com.google.accompanist", name = "accompanist-permissions", version.ref = "accompanistPermissions" }
+
+bytedance-shadowhook = { group = "com.bytedance.android", name = "shadowhook", version.ref = "shadowhook" }
+bytedance-bytehook = { group = "com.bytedance", name = "bytehook", version.ref = "bytehook" }
 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxJunit" }

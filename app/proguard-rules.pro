@@ -25,3 +25,14 @@
 # Coroutines
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
 -keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
+
+# ByteDance shadowhook (inline hook)
+-keep class com.bytedance.shadowhook.** { *; }
+-dontwarn com.bytedance.shadowhook.**
+
+# ByteDance bytehook (PLT hook)
+-keep class com.bytedance.android.bytehook.** { *; }
+-dontwarn com.bytedance.android.bytehook.**
+
+# Larp hook engine
+-keep class com.larp.launcher.hook.** { *; }

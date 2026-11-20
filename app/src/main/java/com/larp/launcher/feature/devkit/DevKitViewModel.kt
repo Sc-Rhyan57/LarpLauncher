@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.larp.launcher.domain.model.DevKitSnapshot
 import com.larp.launcher.domain.model.DevKitVariable
+import com.larp.launcher.hook.LarpHookEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +20,8 @@ data class DevKitUiState(
     val snapshot: DevKitSnapshot? = null,
     val devKitEnabled: Boolean = false,
     val canDrawOverlays: Boolean = false,
+    val shadowHookReady: Boolean = false,
+    val byteHookReady: Boolean = false,
     val isLoading: Boolean = true,
     val error: String? = null
 )
@@ -27,7 +30,8 @@ data class DevKitUiState(
 class DevKitViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val devKitStore: DevKitStore,
-    private val devKitBridge: DevKitBridge
+    private val devKitBridge: DevKitBridge,
+    private val hookEngine: LarpHookEngine
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(DevKitUiState())
@@ -41,13 +45,28 @@ class DevKitViewModel @Inject constructor(
         viewModelScope.launch {
             val variables = devKitStore.loadVariables()
             val snapshot = devKitStore.loadSnapshot()
+            hookEngine.ensureInitialized()
             _state.update {
                 it.copy(
                     variables = variables,
                     snapshot = snapshot,
                     devKitEnabled = DevKitOverlayService.isDevKitEnabled(context),
                     canDrawOverlays = android.provider.Settings.canDrawOverlays(context),
+                    shadowHookReady = hookEngine.shadowReady(),
+                    byteHookReady = hookEngine.byteReady(),
                     isLoading = false
+                )
+            }
+        }
+    }
+
+    fun initHooks() {
+        viewModelScope.launch {
+            hookEngine.ensureInitialized()
+            _state.update {
+                it.copy(
+                    shadowHookReady = hookEngine.shadowReady(),
+                    byteHookReady = hookEngine.byteReady()
                 )
             }
         }
@@ -119,3 +138,4 @@ class DevKitViewModel @Inject constructor(
         _state.update { it.copy(error = null) }
     }
 }
+

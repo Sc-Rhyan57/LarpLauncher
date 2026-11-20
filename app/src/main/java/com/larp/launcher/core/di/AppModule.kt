@@ -69,6 +69,13 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideHookEngine(
+        @ApplicationContext context: Context,
+        console: Console
+    ): com.larp.launcher.hook.LarpHookEngine = com.larp.launcher.hook.LarpHookEngine(context, console)
+
+    @Provides
+    @Singleton
     fun provideRuntimeDownloader(
         @ApplicationContext context: Context,
         client: OkHttpClient,

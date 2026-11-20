@@ -99,6 +99,7 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        prefab = true
     }
 
     sourceSets {
@@ -115,7 +116,10 @@ android {
                 "lib/*/libcrypto.so",
                 "lib/*/libssl.so",
                 "lib/*/libcoreclr.so",
-                "lib/*/libclrjit.so"
+                "lib/*/libclrjit.so",
+                "lib/*/libshadowhook.so",
+                "lib/*/libshadowhook_nothing.so",
+                "lib/*/libbytehook.so"
             )
         }
         resources.excludes += setOf(
@@ -261,6 +265,9 @@ dependencies {
 
     implementation(libs.androidx.work.runtime)
     implementation(libs.accompanist.permissions)
+
+    implementation(libs.bytedance.shadowhook)
+    implementation(libs.bytedance.bytehook)
 
     testImplementation(libs.junit)
     testImplementation(libs.mockk)

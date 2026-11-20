@@ -6,7 +6,9 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -15,10 +17,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -145,6 +150,66 @@ fun DevKitScreen(
                                     }
                                 ) { Text("Conceder") }
                             }
+                        }
+                    }
+                }
+            }
+
+            item {
+                LarpCard {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            "Motores de hook (BepInEx Android)",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            "Bibliotecas nativas da ByteDance para inline/PLT hooking em arm64-v8a (Android 4.1+). Use junto com BepInEx para patchear funções nativas.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier.size(10.dp).clip(RoundedCornerShape(50))
+                                    .background(if (state.shadowHookReady) Color(0xFF4CAF50) else Color(0xFFEF4444))
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "ShadowHook (inline hook)",
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                if (state.shadowHookReady) "OK" else "off",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (state.shadowHookReady) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier.size(10.dp).clip(RoundedCornerShape(50))
+                                    .background(if (state.byteHookReady) Color(0xFF4CAF50) else Color(0xFFEF4444))
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "ByteHook (PLT hook)",
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                if (state.byteHookReady) "OK" else "off",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (state.byteHookReady) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Button(
+                            onClick = { viewModel.initHooks() },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Icon(Icons.Filled.Refresh, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Inicializar hooks")
                         }
                     }
                 }
