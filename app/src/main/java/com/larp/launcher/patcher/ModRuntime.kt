@@ -21,7 +21,8 @@ import javax.inject.Singleton
 class ModRuntime @Inject constructor(
     private val context: Context,
     private val cache: ModCacheManager,
-    private val envProvider: LarpEnvProvider
+    private val envProvider: LarpEnvProvider,
+    private val runtimeDownloader: RuntimeDownloader
 ) {
 
     private val prefs by lazy { context.getSharedPreferences("larp_runtime", Context.MODE_PRIVATE) }
@@ -39,10 +40,14 @@ class ModRuntime @Inject constructor(
         val libil2cpp = File(gameEnv.nativeLibraryDir, "libil2cpp.so")
         val libunity = File(gameEnv.nativeLibraryDir, "libunity.so")
 
-        val assets = context.assets.list("").orEmpty()
-        val hasRuntime = assets.contains("dotnet-arm64.zip")
-        if (!hasRuntime) {
-            Log.i(TAG, "APK sem runtime de mods; abrindo o jogo original")
+        if (!runtimeDownloader.hasRuntime()) {
+            Log.i(TAG, "Runtime indisponível (sem assets e sem downloads); tentando baixar")
+            onProgress("Baixando runtime de mods…", 0.05f)
+            runtimeDownloader.ensureRuntime(onProgress)
+        }
+
+        if (!runtimeDownloader.hasRuntime()) {
+            Log.i(TAG, "Runtime ausente; abrindo o jogo original")
             return@withContext false
         }
 
@@ -50,20 +55,24 @@ class ModRuntime @Inject constructor(
             context.packageManager.getPackageInfo(envProvider.current().gamePackage, 0).lastUpdateTime
         }.getOrDefault(0L)
 
-        if (prefs.getInt(KEY_BUNDLE_VERSION, 0) != BUNDLE_VERSION || !File(dotnetDir, "System.Private.CoreLib.dll").isFile) {
+        val dotnetFingerprint = runtimeDownloader.dotnetZip().let { if (it.isFile) it.length().toString() else "asset" }
+        val dotnetKey = "bundle_dotnet_$dotnetFingerprint"
+        if (prefs.getInt(dotnetKey, 0) != BUNDLE_VERSION || !File(dotnetDir, "System.Private.CoreLib.dll").isFile) {
             Log.i(TAG, "Extraindo .NET")
             onProgress("Extraindo runtime .NET…", 0.1f)
             deleteTree(dotnetDir)
-            unzipAsset("dotnet-arm64.zip", dotnetDir, false)
-            prefs.edit().putInt(KEY_BUNDLE_VERSION, BUNDLE_VERSION).apply()
+            unzipSource(runtimeDownloader.dotnetSource(), dotnetDir, false)
+            prefs.edit().putInt(dotnetKey, BUNDLE_VERSION).apply()
         }
 
-        val bepKey = if (privateBepInEx) "bundle_bep_privado" else "bundle_bep_externo"
+        val bepFingerprint = runtimeDownloader.bepinexZip().let { if (it.isFile) it.length().toString() else "asset" }
+        val bepKeyBase = if (privateBepInEx) "bundle_bep_privado_" else "bundle_bep_externo_"
+        val bepKey = bepKeyBase + bepFingerprint
         if (prefs.getInt(bepKey, 0) != BUNDLE_VERSION || !File(bepinexDir, "core/BepInEx.Core.dll").isFile) {
             Log.i(TAG, "Extraindo BepInEx em $bepinexDir")
             onProgress("Extraindo BepInEx…", 0.45f)
             deleteTree(File(bepinexDir, "core"))
-            unzipAsset("BepInEx-arm64.zip", bepinexDir, true)
+            unzipSource(runtimeDownloader.bepinexSource(), bepinexDir, true)
             prefs.edit().putInt(bepKey, BUNDLE_VERSION).apply()
         }
 
@@ -106,21 +115,23 @@ class ModRuntime @Inject constructor(
         true
     }
 
-    private fun unzipAsset(assetName: String, outputDir: File, onlyCoreIfExists: Boolean) {
+    private fun unzipSource(source: RuntimeDownloader.RuntimeSource, outputDir: File, onlyCoreIfExists: Boolean) {
         val root = outputDir.canonicalPath + File.separator
-        ZipInputStream(BufferedInputStream(context.assets.open(assetName), 65536)).use { zip ->
-            while (true) {
-                val entry = zip.nextEntry ?: break
-                val target = File(outputDir, entry.name)
-                val targetCanonical = target.canonicalPath + File.separator
-                if (!targetCanonical.startsWith(root)) {
-                    throw IOException("Entrada inválida no pacote: ${entry.name}")
-                }
-                if (entry.isDirectory) {
-                    target.mkdirs()
-                } else if (!onlyCoreIfExists || !target.isFile || entry.name.startsWith("core/")) {
-                    target.parentFile?.mkdirs()
-                    target.outputStream().use { out -> zip.copyTo(out, 65536) }
+        source.open().use { stream ->
+            ZipInputStream(BufferedInputStream(stream, 65536)).use { zip ->
+                while (true) {
+                    val entry = zip.nextEntry ?: break
+                    val target = File(outputDir, entry.name)
+                    val targetCanonical = target.canonicalPath + File.separator
+                    if (!targetCanonical.startsWith(root)) {
+                        throw IOException("Entrada inválida no pacote: ${entry.name}")
+                    }
+                    if (entry.isDirectory) {
+                        target.mkdirs()
+                    } else if (!onlyCoreIfExists || !target.isFile || entry.name.startsWith("core/")) {
+                        target.parentFile?.mkdirs()
+                        target.outputStream().use { out -> zip.copyTo(out, 65536) }
+                    }
                 }
             }
         }
@@ -141,9 +152,8 @@ class ModRuntime @Inject constructor(
 
     companion object {
         private const val TAG = "LarpLauncher"
-        private const val BUNDLE_VERSION = 1
+        private const val BUNDLE_VERSION = 2
         private const val METADATA_ENTRY = "assets/bin/Data/Managed/Metadata/global-metadata.dat"
-        private const val KEY_BUNDLE_VERSION = "bundle"
         private const val KEY_GAME_LAST_UPDATE = "game"
         private const val KEY_UNITY_VERSION = "unity"
 

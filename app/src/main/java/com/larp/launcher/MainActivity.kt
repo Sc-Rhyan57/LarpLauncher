@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,6 +35,8 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         @Volatile var authStateChanged: Long = 0
+        const val EXTRA_DEVKIT = "larp_extra_devkit"
+        @Volatile var pendingDevKitSnapshot: String? = null
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,6 +60,15 @@ class MainActivity : ComponentActivity() {
             }
             LarpTheme(darkTheme = isDark, dynamicColor = dynamicColor) {
                 val navController = rememberNavController()
+                LaunchedEffect(authTick) {
+                    val pending = pendingDevKitSnapshot
+                    if (pending != null && authRepository.isLoggedIn()) {
+                        pendingDevKitSnapshot = null
+                        navController.navigate(Routes.DEVKIT) {
+                            launchSingleTop = true
+                        }
+                    }
+                }
                 LarpNavHost(
                     navController = navController,
                     startDestination = startDestination,
@@ -90,6 +102,11 @@ class MainActivity : ComponentActivity() {
                     AuthStateHolder.bump()
                 }.onFailure { t -> console.e("MainActivity", "Falha no finishLogin", t) }
             }
+        } else if (data.scheme == "com.larp.launcher" && data.host == "devkit") {
+            val snapshotId = data.getQueryParameter("snapshot") ?: ""
+            console.i("MainActivity", "Dev Kit deep link recebido: snapshot=$snapshotId")
+            pendingDevKitSnapshot = snapshotId
+            AuthStateHolder.bump()
         }
     }
 }

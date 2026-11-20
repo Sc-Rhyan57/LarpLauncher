@@ -7,11 +7,15 @@ import com.larp.launcher.data.local.cache.ModCacheManager
 import com.larp.launcher.data.local.db.LarpDatabase
 import com.larp.launcher.data.local.prefs.AuthPrefs
 import com.larp.launcher.data.local.prefs.SettingsPrefs
+import com.larp.launcher.feature.devkit.DevKitBridge
+import com.larp.launcher.feature.devkit.DevKitStore
+import com.larp.launcher.patcher.RuntimeDownloader
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import okhttp3.OkHttpClient
 import javax.inject.Singleton
 
 @Module
@@ -58,4 +62,23 @@ object AppModule {
         @ApplicationContext context: Context,
         json: kotlinx.serialization.json.Json
     ): Console = Console(context, json)
+
+    @Provides
+    @Singleton
+    fun provideRuntimeDownloader(
+        @ApplicationContext context: Context,
+        client: OkHttpClient,
+        envProvider: LarpEnvProvider
+    ): RuntimeDownloader = RuntimeDownloader(context, client, envProvider)
+
+    @Provides
+    @Singleton
+    fun provideDevKitStore(
+        @ApplicationContext context: Context,
+        json: kotlinx.serialization.json.Json
+    ): DevKitStore = DevKitStore(context, json)
+
+    @Provides
+    @Singleton
+    fun provideDevKitBridge(): DevKitBridge = DevKitBridge()
 }

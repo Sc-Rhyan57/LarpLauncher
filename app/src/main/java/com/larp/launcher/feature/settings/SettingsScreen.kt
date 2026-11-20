@@ -246,7 +246,9 @@ fun SettingsScreen(
                                 gamePackage = gamePackage.trim(),
                                 fridaGadgetBundled = state.env.fridaGadgetBundled,
                                 sentryDsn = state.env.sentryDsn,
-                                fcmSenderId = state.env.fcmSenderId
+                                fcmSenderId = state.env.fcmSenderId,
+                                runtimeDotnetUrl = state.env.runtimeDotnetUrl,
+                                runtimeBepinexUrl = state.env.runtimeBepinexUrl
                             )
                             viewModel.saveEnv(env)
                             scope.launch { snackbarHostState.showSnackbar("ENVs salvas") }

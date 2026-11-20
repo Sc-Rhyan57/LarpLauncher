@@ -10,11 +10,13 @@ import com.larp.launcher.feature.announcements.AnnouncementsScreen
 import com.larp.launcher.feature.auth.LoginScreen
 import com.larp.launcher.feature.broadcast.BroadcastScreen
 import com.larp.launcher.feature.console.ConsoleScreen
+import com.larp.launcher.feature.devkit.DevKitScreen
 import com.larp.launcher.feature.frida.FridaScreen
 import com.larp.launcher.feature.launcher.LauncherScreen
 import com.larp.launcher.feature.malum.MalumScreen
 import com.larp.launcher.feature.mods.browser.ModsScreen
 import com.larp.launcher.feature.mods.mine.MyModsScreen
+import com.larp.launcher.feature.runtime.RuntimeScreen
 import com.larp.launcher.feature.rooms.RoomsScreen
 import com.larp.launcher.feature.settings.SettingsScreen
 import com.larp.launcher.feature.voice.VoiceScreen
@@ -32,6 +34,8 @@ object Routes {
     const val FRIDA = "frida"
     const val CONSOLE = "console"
     const val SETTINGS = "settings"
+    const val RUNTIME = "runtime"
+    const val DEVKIT = "devkit"
 
     fun voice(roomId: String): String = "voice/$roomId"
 }
@@ -65,6 +69,8 @@ fun LarpNavHost(
                         com.larp.launcher.feature.launcher.LarpDestination.Malum -> navController.navigate(Routes.MALUM)
                         com.larp.launcher.feature.launcher.LarpDestination.Frida -> navController.navigate(Routes.FRIDA)
                         com.larp.launcher.feature.launcher.LarpDestination.Console -> navController.navigate(Routes.CONSOLE)
+                        com.larp.launcher.feature.launcher.LarpDestination.Runtime -> navController.navigate(Routes.RUNTIME)
+                        com.larp.launcher.feature.launcher.LarpDestination.DevKit -> navController.navigate(Routes.DEVKIT)
                         com.larp.launcher.feature.launcher.LarpDestination.Settings -> navController.navigate(Routes.SETTINGS)
                     }
                 },
@@ -120,6 +126,14 @@ fun LarpNavHost(
                 onBack = { navController.popBackStack() },
                 onOpenLicenses = {}
             )
+        }
+
+        composable(Routes.RUNTIME) {
+            RuntimeScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.DEVKIT) {
+            DevKitScreen(onBack = { navController.popBackStack() })
         }
     }
 }

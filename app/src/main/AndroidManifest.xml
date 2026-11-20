@@ -13,6 +13,7 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
@@ -67,6 +68,12 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="com.larp.launcher" android:host="oauth" />
             </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.larp.launcher" android:host="devkit" />
+            </intent-filter>
         </activity>
 
         <activity
@@ -86,6 +93,15 @@
             android:name=".feature.voice.FloatingVoiceBubbleService"
             android:foregroundServiceType="microphone"
             android:exported="false" />
+
+        <service
+            android:name=".feature.devkit.DevKitOverlayService"
+            android:foregroundServiceType="specialUse"
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="developer_overlay" />
+        </service>
 
         <provider
             android:name="androidx.core.content.FileProvider"

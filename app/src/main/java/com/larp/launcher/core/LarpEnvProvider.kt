@@ -25,11 +25,15 @@ data class LarpEnv(
     val gamePackage: String = "com.innersloth.spacemafia",
     val fridaGadgetBundled: Boolean = BuildConfig.FRIDA_GADGET_BUNDLED,
     val sentryDsn: String = "",
-    val fcmSenderId: String = ""
+    val fcmSenderId: String = "",
+    val runtimeDotnetUrl: String = DEFAULT_RUNTIME_DOTNET_URL,
+    val runtimeBepinexUrl: String = DEFAULT_RUNTIME_BEPINEX_URL
 ) {
     companion object {
         const val DEFAULT_API_URL = "https://larp-relaxxx.rhyanlus501-b24.workers.dev"
         const val DEFAULT_WS_URL = "wss://larp-relaxxx.rhyanlus501-b24.workers.dev"
+        const val DEFAULT_RUNTIME_DOTNET_URL = "https://github.com/BepInEx/dotnet-runtime/releases/download/20220911.46/android-arm64.zip"
+        const val DEFAULT_RUNTIME_BEPINEX_URL = ""
     }
 }
 

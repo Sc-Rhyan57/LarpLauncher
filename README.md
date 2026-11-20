@@ -44,6 +44,8 @@ O **Larp Launcher** é um aplicativo Android que:
 | Injeção in-process (GameActivity) | Pronto | Jogo roda dentro do processo do launcher; libfusion.so bootstrapa BepInEx + CoreCLR + Dobby |
 | Mods do servidor (BepInEx RGM1) | Pronto | Catálogo, download, validação SHA-256, descriptografia AES-CBC |
 | Meus mods (DLL local) | Pronto | Upload de DLL + capa + nome/descrição/autor |
+| Runtime Downloader | Pronto | Baixa dotnet-arm64.zip e BepInEx-arm64.zip de URLs configuráveis quando o APK não traz bundled |
+| Dev Kit | Pronto | Overlay in-game com variáveis de memória (endereço + valor), deep link para app com cópia |
 | Frida Mods (MalumMenu-style) | Pronto | Upload de agent.js + libfrida-gadget.so bundled |
 | Salas de jogo | Pronto | Criar/entrar/sair, lista em tempo real (WebSocket) |
 | Mural de avisos | Pronto | CRUD admin + push em tempo real |
@@ -154,13 +156,32 @@ O `libfrida-gadget.so` é baixado automaticamente pela task Gradle `downloadFrid
 
 Pré-requisito: `xz-utils` instalado (Ubuntu: `sudo apt install xz-utils`). Em CI, o workflow já instala.
 
-### 4. Discord OAuth
+### 4. Runtime de mods (BepInEx + .NET)
+
+O APK não precisa trazer `dotnet-arm64.zip` e `BepInEx-arm64.zip` bundled em `app/src/main/assets/`. Quando ausentes, o launcher baixa de URLs configuráveis em **Ajustes → Runtime** (ou Quick Access "Runtime" na home):
+
+- `runtimeDotnetUrl` (default: `https://github.com/BepInEx/dotnet-runtime/releases/download/20220911.46/android-arm64.zip`)
+- `runtimeBepinexUrl` (default: vazio — hospede seu build de BepInEx.Android e cole a URL)
+
+Os zips ficam em `filesDir/runtime/` e são usados automaticamente por `ModRuntime.prepare()` no lugar dos assets do APK.
+
+### 5. Dev Kit
+
+Tela **Dev Kit** (Quick Access na home) para desenvolvedores:
+
+1. Toggle persistente "Dev Kit overlay" — quando ligado, `GameActivity` inicia um foreground service (`DevKitOverlayService`) que desenha uma janela flutuante sobre o jogo via `WindowManager` (permissão `SYSTEM_ALERT_WINDOW`).
+2. O overlay lê `/proc/self/maps` do processo `:game` para achar a base do módulo (default `libil2cpp.so`), depois lê `/proc/self/mem` no offset configurado (ex.: `0x028382`).
+3. Atualiza a cada 1s, mostra nome + endereço + bytes crus (hex) e valor decodificado (int32/int64/float/double/ascii).
+4. Botão "Abrir no app" dispara deep link `com.larp.launcher://devkit?snapshot=ID` que abre a Dev Kit screen com a lista organizada e botão de copiar por linha.
+5. Variáveis persistidas em `filesDir/devkit/variables.json`; snapshots em `filesDir/devkit/snapshot.json`.
+
+### 6. Discord OAuth
 
 Veja [Discord OAuth](#discord-oauth).
 
-### 5. Permissões
+### 7. Permissões
 
-O app pede permissão de microfone (chat de voz) e acesso a imagens/docs (upload de DLL). Para o login Discord, usamos Custom Tabs — não há SDK oficial do Discord embutido.
+O app pede permissão de microfone (chat de voz), acesso a imagens/docs (upload de DLL) e `SYSTEM_ALERT_WINDOW` (overlay do Dev Kit). Para o login Discord, usamos Custom Tabs — não há SDK oficial do Discord embutido.
 
 ## Discord OAuth
 

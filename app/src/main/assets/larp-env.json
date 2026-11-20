@@ -11,5 +11,7 @@
   "gamePackage": "com.innersloth.spacemafia",
   "fridaGadgetBundled": true,
   "sentryDsn": "",
-  "fcmSenderId": ""
+  "fcmSenderId": "",
+  "runtimeDotnetUrl": "https://github.com/BepInEx/dotnet-runtime/releases/download/20220911.46/android-arm64.zip",
+  "runtimeBepinexUrl": ""
 }

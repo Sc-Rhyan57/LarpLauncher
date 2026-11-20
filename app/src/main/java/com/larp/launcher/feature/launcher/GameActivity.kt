@@ -22,6 +22,7 @@ import android.widget.TextView
 import androidx.activity.ComponentActivity
 import com.larp.launcher.boot.Boot
 import com.larp.launcher.diagnostics.Diario
+import com.larp.launcher.feature.devkit.DevKitOverlayService
 import com.larp.launcher.patcher.GameContext
 import com.larp.launcher.patcher.GameEnv
 import com.larp.launcher.patcher.ModRuntime
@@ -45,6 +46,7 @@ class GameActivity : ComponentActivity() {
     private var playerView: View? = null
     private var modsLoaded: Boolean = false
     private var diario: Diario? = null
+    private var devKitStarted: Boolean = false
 
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(base)
@@ -149,7 +151,7 @@ class GameActivity : ComponentActivity() {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 when {
                     error != null -> fail("Os mods não puderam ser carregados.", error)
-                    !ok -> fail("O runtime de mods não está neste APK. Faltam dotnet-arm64.zip e BepInEx-arm64.zip em app/src/main/assets.", null)
+                    !ok -> fail("Runtime de mods indisponível. Abra Ajustes → Runtime e baixe dotnet-arm64.zip e BepInEx-arm64.zip.", null)
                     else -> runStart(e)
                 }
             }
@@ -195,6 +197,10 @@ class GameActivity : ComponentActivity() {
 
     override fun onDestroy() {
         callPlayer("destroy")
+        if (devKitStarted) {
+            runCatching { stopService(Intent(this, DevKitOverlayService::class.java)) }
+            devKitStarted = false
+        }
         super.onDestroy()
     }
 
@@ -213,7 +219,28 @@ class GameActivity : ComponentActivity() {
         view.requestFocus()
         if (modsLoaded) showProgress()
         loadEosSdkSafely(classLoader)
+        maybeStartDevKitOverlay()
         Log.i(TAG, "UnityPlayer criado")
+    }
+
+    private fun maybeStartDevKitOverlay() {
+        if (devKitStarted) return
+        val enabled = DevKitOverlayService.isDevKitEnabled(this)
+        if (!enabled) return
+        if (!android.provider.Settings.canDrawOverlays(this)) {
+            Log.w(TAG, "Dev Kit ativo mas SYSTEM_ALERT_WINDOW não concedido")
+            return
+        }
+        runCatching {
+            val intent = Intent(this, DevKitOverlayService::class.java)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
+            devKitStarted = true
+            Log.i(TAG, "Dev Kit overlay iniciado")
+        }.onFailure { Log.w(TAG, "Falha ao iniciar Dev Kit overlay: ${it.message}") }
     }
 
     private fun loadEosSdkSafely(classLoader: ClassLoader) {

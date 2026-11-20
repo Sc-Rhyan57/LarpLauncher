@@ -20,7 +20,8 @@ class GameLauncher @Inject constructor(
     private val gameEnvRepo: GameEnvRepository,
     private val modRuntime: ModRuntime,
     private val modSync: ModSync,
-    private val cache: ModCacheManager
+    private val cache: ModCacheManager,
+    private val runtimeDownloader: RuntimeDownloader
 ) {
 
     fun launchWithMods(modIds: List<String>, privateBepInEx: Boolean = true, gamePackage: String = GameActivity.DEFAULT_GAME_PACKAGE): Flow<PatchProgress> = flow {
@@ -31,6 +32,12 @@ class GameLauncher @Inject constructor(
             return@flow
         }
         try {
+            if (!runtimeDownloader.hasRuntime()) {
+                emit(PatchProgress(PatchProgress.Stage.Downloading, "Baixando runtime de mods…", 0.05f))
+                runtimeDownloader.ensureRuntime { msg, p ->
+                    emit(PatchProgress(PatchProgress.Stage.Downloading, msg, p))
+                }
+            }
             modSync.run(modIds) { name, downloading, progress ->
                 val stage = if (downloading) PatchProgress.Stage.Downloading else PatchProgress.Stage.Decrypting
                 val msg = if (downloading) "Baixando $name…" else "Descompactando $name…"
@@ -51,14 +58,18 @@ class GameLauncher @Inject constructor(
             emit(PatchProgress(PatchProgress.Stage.Failed, "Jogo base não instalado", 0f, IllegalStateException("Jogo não instalado: $gamePackage")))
             return@flow
         }
-        val assets = context.assets.list("").orEmpty()
-        val missing = listOf("dotnet-arm64.zip", "BepInEx-arm64.zip").filter { it !in assets }
-        if (missing.isNotEmpty()) {
-            val msg = "O runtime de mods não está neste APK. Faltam em app/src/main/assets: ${missing.joinToString(", ")}"
-            emit(PatchProgress(PatchProgress.Stage.Failed, msg, 0f, IllegalStateException(msg)))
-            return@flow
-        }
         try {
+            if (!runtimeDownloader.hasRuntime()) {
+                emit(PatchProgress(PatchProgress.Stage.Downloading, "Baixando runtime de mods…", 0.05f))
+                runtimeDownloader.ensureRuntime { msg, p ->
+                    emit(PatchProgress(PatchProgress.Stage.Downloading, msg, p))
+                }
+            }
+            if (!runtimeDownloader.hasRuntime()) {
+                val msg = "Runtime indisponível. Configure as URLs em Ajustes → Runtime."
+                emit(PatchProgress(PatchProgress.Stage.Failed, msg, 0f, IllegalStateException(msg)))
+                return@flow
+            }
             emit(PatchProgress(PatchProgress.Stage.Installing, "Copiando DLLs locais…", 0.1f))
             val plugins = cache.bepinexPluginsDir().apply { mkdirs() }
             dllPaths.forEachIndexed { index, src ->
