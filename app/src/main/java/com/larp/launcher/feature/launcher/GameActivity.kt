@@ -144,8 +144,9 @@ class GameActivity : ComponentActivity() {
                 }
                 if (ok) {
                     runOnUiThread { status.text = if (isPt) "Iniciando BepInEx…" else "Starting BepInEx…" }
-                    Boot.load("fusion")
-                    if (Boot.stage < 1) throw IllegalStateException(Boot.message)
+                    val nativeDir = e.nativeLibsDir
+                    if (!File(nativeDir, "libmain.so").isFile) throw IllegalStateException("libmain.so (proxy) ausente em $nativeDir")
+                    if (!File(nativeDir, "libfusion.so").isFile) throw IllegalStateException("libfusion.so ausente em $nativeDir")
                     modsLoaded = true
                 }
             } catch (t: Throwable) {
@@ -212,6 +213,12 @@ class GameActivity : ComponentActivity() {
     }
 
     private fun startUnity(env: GameEnv) {
+        runCatching {
+            android.system.Os.setenv("LARP_GAME_LIB_DIR", env.gameNativeLibDir.absolutePath, true)
+            if (!modsLoaded) android.system.Os.setenv("LARP_MODLOADERS", "", true)
+            val dirs = listOf(env.nativeLibsDir.absolutePath, env.gameNativeLibDir.absolutePath).joinToString(":")
+            if (!modsLoaded) android.system.Os.setenv("LARP_LIB_DIRS", dirs, true)
+        }
         val classLoader = env.classLoader
         Thread.currentThread().contextClassLoader = classLoader
         playerClass = classLoader.loadClass("com.unity3d.player.UnityPlayer")

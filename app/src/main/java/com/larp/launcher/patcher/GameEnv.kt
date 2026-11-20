@@ -65,6 +65,7 @@ class GameEnv private constructor(
             gameAppInfo.splitSourceDirs?.forEach { classpath.append(File.pathSeparator).append(it) }
             val bootDex = extractBootDex(context)
             if (bootDex != null) classpath.append(File.pathSeparator).append(bootDex.absolutePath)
+            launcherAppInfo.sourceDir?.let { classpath.append(File.pathSeparator).append(it) }
 
             val nativeLibsDir = NativeLibsInstaller.ensureInstalled(context)
             val gameNativeLibDir = resolveGameLibs(context, gamePackage, gameAppInfo)

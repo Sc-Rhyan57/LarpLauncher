@@ -121,6 +121,8 @@ class ModRuntime @Inject constructor(
         setenv("REGIS_DOTNET_DIR", dotnetDir.absolutePath)
         setenv("REGIS_LIB_DIRS", libDirs)
         setenv("FUSION_LOG_DIR", bepinexDir.absolutePath)
+        setenv("LARP_MODLOADERS", "libfusion.so")
+        setenv("LARP_GAME_LIB_DIR", gameEnv.nativeLibraryDir)
         setenv("HOME", context.filesDir.absolutePath)
         setenv("TMPDIR", context.cacheDir.absolutePath)
         setenv("DOTNET_EnableWriteXorExecute", "0")

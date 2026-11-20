@@ -278,8 +278,10 @@ class DevKitOverlayService : Service() {
 
     private fun modsLines(): List<String> {
         val out = ArrayList<String>()
-        out += "Loader: etapa=${com.regis.boot.Boot.stage} ${com.regis.boot.Boot.message}"
+        out += "Loader: etapa=${com.larp.launcher.boot.Boot.stage} ${com.larp.launcher.boot.Boot.message}"
         val dotnet = modCache.dotnetDir()
+        out += "libmain proxy: " + if (File(filesDir, "native/libmain.so").isFile) "ok" else "Error: ausente"
+        out += "libfusion: " + if (File(filesDir, "native/libfusion.so").isFile) "ok" else "Error: ausente"
         out += "dotnet: " + if (File(dotnet, "System.Private.CoreLib.dll").isFile) "ok" else "Error: ausente"
         out += "libcoreclr: " + if (File(dotnet, "libcoreclr.so").isFile || File(applicationInfo.nativeLibraryDir, "libcoreclr.so").isFile) "ok" else "Error: não encontrada"
         out += "BepInEx core: " + if (File(modCache.bepinexDir(), "core/BepInEx.Core.dll").isFile) "ok" else "Error: ausente"
@@ -294,7 +296,7 @@ class DevKitOverlayService : Service() {
         out += "Erros: ${errors.size}"
         errors.takeLast(12).forEach { out += "  ✖ $it" }
         if (log.isEmpty()) out += "Aviso: LogOutput.log ainda não existe"
-        com.regis.boot.Boot.lines().takeLast(8).forEach { out += "boot: $it" }
+        com.larp.launcher.boot.Boot.lines.takeLast(8).forEach { out += "boot: $it" }
         return out
     }
 
