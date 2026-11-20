@@ -13,25 +13,15 @@ class DevKitBridge @Inject constructor() {
 
     fun findModuleBase(moduleName: String): Long? {
         return try {
-            RandomAccessFile("/proc/self/maps", "r").use { raf ->
-                val line = StringBuilder()
-                while (true) {
-                    val b = raf.read()
-                    if (b == -1) break
-                    if (b == '\n'.code) {
-                        val s = line.toString()
-                        if (s.contains(moduleName) && s.contains("r-xp")) {
-                            val first = s.substringBefore('-').trim()
-                            val parsed = first.toLongOrNull(16) ?: return@use null
-                            return@use parsed
-                        }
-                        line.setLength(0)
-                    } else {
-                        line.append(b.toChar())
-                    }
+            var lowest: Long? = null
+            java.io.File("/proc/self/maps").bufferedReader().useLines { lines ->
+                for (s in lines) {
+                    if (!s.contains("/$moduleName")) continue
+                    val start = s.substringBefore('-').trim().toLongOrNull(16) ?: continue
+                    if (lowest == null || start < lowest!!) lowest = start
                 }
-                null
             }
+            lowest
         } catch (t: Throwable) {
             Log.w(TAG, "Falha ao ler /proc/self/maps: ${t.message}")
             null

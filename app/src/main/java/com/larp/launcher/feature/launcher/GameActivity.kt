@@ -47,6 +47,7 @@ class GameActivity : ComponentActivity() {
     private var modsLoaded: Boolean = false
     private var diario: Diario? = null
     private var devKitStarted: Boolean = false
+    private var resumed: Boolean = false
 
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(base)
@@ -73,7 +74,7 @@ class GameActivity : ComponentActivity() {
             fail("Não consegui abrir o jogo instalado.", GameEnv.error())
             return
         }
-        if (intent?.getBooleanExtra(EXTRA_NO_MODS, false) == true) {
+        if (intent?.getBooleanExtra(EXTRA_NO_MODS, false) == true || intent?.getBooleanExtra(EXTRA_FRIDA, false) == true) {
             runStart(e)
         } else {
             prepareModsAsync(e)
@@ -82,6 +83,7 @@ class GameActivity : ComponentActivity() {
 
     private fun runStart(e: GameEnv) {
         try {
+            if (intent?.getBooleanExtra(EXTRA_FRIDA, false) == true) loadFridaGadget(e)
             startUnity(e)
         } catch (t: Throwable) {
             fail("O jogo não iniciou.", unwrap(t))
@@ -166,10 +168,12 @@ class GameActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        resumed = true
         callPlayer("resume")
     }
 
     override fun onPause() {
+        resumed = false
         super.onPause()
         callPlayer("pause")
     }
@@ -217,11 +221,24 @@ class GameActivity : ComponentActivity() {
         playerView = view
         setContentView(view)
         view.requestFocus()
+        if (resumed) {
+            callPlayer("resume")
+            callPlayer("windowFocusChanged", arrayOf(Boolean::class.javaPrimitiveType!!), hasWindowFocus())
+        }
         if (modsLoaded) showProgress()
         loadEosSdkSafely(classLoader)
         maybeStartDevKitOverlay()
         maybeStartVoiceBubble()
         Log.i(TAG, "UnityPlayer criado")
+    }
+
+    private fun loadFridaGadget(env: GameEnv) {
+        val gadget = File(env.nativeLibsDir, "libfrida-gadget.so")
+        val script = File(env.nativeLibsDir, "libfrida-gadget.script.so")
+        if (!gadget.isFile) throw IllegalStateException("libfrida-gadget.so ausente em ${env.nativeLibsDir}")
+        if (!script.isFile) throw IllegalStateException("agent.js não instalado (libfrida-gadget.script.so ausente)")
+        System.load(gadget.absolutePath)
+        Log.i(TAG, "Frida gadget carregado: ${gadget.absolutePath}")
     }
 
     private fun launcherServiceIntent(service: Class<*>): Intent =
@@ -414,15 +431,17 @@ class GameActivity : ComponentActivity() {
         private const val EXTRA_PRIVATE_MODS = "mods_privados"
         private const val EXTRA_GAME_PACKAGE = "game_package"
         private const val EXTRA_NO_MODS = "sem_mods"
+        private const val EXTRA_FRIDA = "frida"
         const val DEFAULT_GAME_PACKAGE = "com.innersloth.spacemafia"
         private const val MAX_WAIT_MS = 1_200_000L
 
-        fun newIntent(context: Context, gamePackage: String, privateMods: Boolean, noMods: Boolean = false): Intent =
+        fun newIntent(context: Context, gamePackage: String, privateMods: Boolean, noMods: Boolean = false, frida: Boolean = false): Intent =
             Intent(context, GameActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 putExtra(EXTRA_GAME_PACKAGE, gamePackage)
                 putExtra(EXTRA_PRIVATE_MODS, privateMods)
                 putExtra(EXTRA_NO_MODS, noMods)
+                putExtra(EXTRA_FRIDA, frida)
             }
 
         fun progressFor(stage: Int, msg: String): Int {

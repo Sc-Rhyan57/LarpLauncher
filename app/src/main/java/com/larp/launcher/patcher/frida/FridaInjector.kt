@@ -22,9 +22,11 @@ class FridaInjector @Inject constructor(
         val gadget = File(nativeDir, "libfrida-gadget.so").takeIf { it.isFile }
             ?: throw IllegalStateException("libfrida-gadget.so não bundled. Veja docs/ENVS.md (LARP_BUNDLE_FRIDA_GADGET).")
         val agentTarget = File(nativeDir, "libfrida-gadget.script.so")
+        agentTarget.delete()
         agentJs.copyTo(agentTarget, overwrite = true)
         agentTarget.setReadOnly()
         val configTarget = File(nativeDir, "libfrida-gadget.config.so")
+        configTarget.delete()
         configTarget.writeText(gadgetConfig ?: NativeLibsInstaller.DEFAULT_GADGET_CONFIG)
         configTarget.setReadOnly()
         Log.i(TAG, "Frida agent instalado: ${agentJs.name} -> $agentTarget")

@@ -7,6 +7,8 @@
 #include <cstring>
 #include <string>
 #include <atomic>
+#include <csetjmp>
+#include <csignal>
 
 #ifdef __ANDROID__
 #include <android/log.h>
@@ -363,12 +365,64 @@ int dumpAll(const char* path, bool force) {
     return lines;
 }
 
+thread_local sigjmp_buf* g_jump = nullptr;
+struct sigaction g_old[3];
+const int kSignals[3] = {SIGSEGV, SIGBUS, SIGABRT};
+
+int slotOf(int sig) {
+    for (int i = 0; i < 3; ++i) if (kSignals[i] == sig) return i;
+    return -1;
+}
+
+void faultHandler(int sig, siginfo_t* info, void* ctx) {
+    if (g_jump) siglongjmp(*g_jump, 1);
+    int slot = slotOf(sig);
+    if (slot >= 0) {
+        const struct sigaction& old = g_old[slot];
+        if (old.sa_flags & SA_SIGINFO) {
+            if (old.sa_sigaction) { old.sa_sigaction(sig, info, ctx); return; }
+        } else if (old.sa_handler != SIG_DFL && old.sa_handler != SIG_IGN && old.sa_handler) {
+            old.sa_handler(sig);
+            return;
+        }
+    }
+    signal(sig, SIG_DFL);
+    raise(sig);
+}
+
+int guardedDump(const char* path, bool force) {
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_sigaction = faultHandler;
+    sa.sa_flags = SA_SIGINFO | SA_NODEFER;
+    sigemptyset(&sa.sa_mask);
+    for (int i = 0; i < 3; ++i) sigaction(kSignals[i], &sa, &g_old[i]);
+
+    sigjmp_buf jump;
+    int result = -7;
+    if (sigsetjmp(jump, 1) == 0) {
+        g_jump = &jump;
+        try {
+            result = dumpAll(path, force);
+        } catch (...) {
+            LOGW("exceção do IL2CPP durante o dump");
+            result = -7;
+        }
+    } else {
+        LOGW("dump abortado por falha nativa; ignorando");
+        result = -7;
+    }
+    g_jump = nullptr;
+    for (int i = 0; i < 3; ++i) sigaction(kSignals[i], &g_old[i], nullptr);
+    return result;
+}
+
 }
 
 extern "C" int larp_dump(const char* path, int force) {
     bool expected = false;
     if (!running.compare_exchange_strong(expected, true)) return -6;
-    int result = dumpAll(path, force != 0);
+    int result = guardedDump(path, force != 0);
     running.store(false);
     return result;
 }

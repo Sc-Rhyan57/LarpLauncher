@@ -121,11 +121,8 @@ class GameLauncher @Inject constructor(
                 val agent = File(agentJsPath)
                 val config = File(context.filesDir, "frida/libfrida-gadget.config.so").takeIf { it.isFile }
                 NativeLibsInstaller.installFridaGadget(context, gadget, agent, config)
-                trySend(PatchProgress(PatchProgress.Stage.Preparing, "Preparando runtime…", 0f))
-                modRuntime.prepare(env, privateBepInEx = false)
                 trySend(PatchProgress(PatchProgress.Stage.Ready, "Abrindo jogo com Frida…", 1f))
-                val hasRuntime = "dotnet-arm64.zip" in context.assets.list("").orEmpty()
-                startGame(env, privateBepInEx = false, noMods = !hasRuntime)
+                startGame(env, privateBepInEx = false, noMods = true, frida = true)
             } catch (t: Throwable) {
                 trySend(PatchProgress(PatchProgress.Stage.Failed, t.message ?: "Erro", 0f, t))
             }
@@ -156,9 +153,9 @@ class GameLauncher @Inject constructor(
         awaitClose { job.cancel() }
     }.flowOn(Dispatchers.IO)
 
-    private fun startGame(env: GameEnv, privateBepInEx: Boolean, noMods: Boolean = false) {
+    private fun startGame(env: GameEnv, privateBepInEx: Boolean, noMods: Boolean = false, frida: Boolean = false) {
         GameEnvFactory.reset()
-        val intent = GameActivity.newIntent(context, env.packageName, privateBepInEx, noMods)
+        val intent = GameActivity.newIntent(context, env.packageName, privateBepInEx, noMods, frida)
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(intent)
     }

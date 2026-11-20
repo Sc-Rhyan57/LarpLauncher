@@ -45,6 +45,7 @@ class DevKitCatalogExtractor @Inject constructor(
             return
         }
         store.saveCatalogStatus("Aguardando o jogo iniciar…")
+        delay(INITIAL_DELAY_MS)
         val started = System.currentTimeMillis()
         var forceDump = false
         while (currentCoroutineContext().isActive) {
@@ -69,6 +70,9 @@ class DevKitCatalogExtractor @Inject constructor(
                     store.saveCatalogStatus("Falha: o libil2cpp.so deste jogo não exporta as funções il2cpp_*")
                     return
                 }
+                result == -7 -> {
+                    store.saveCatalogStatus("Extração abortada (falha nativa evitada). Tentando de novo…")
+                }
                 result == -5 -> {
                     store.saveCatalogStatus("Falha ao gravar o catálogo")
                     return
@@ -81,6 +85,7 @@ class DevKitCatalogExtractor @Inject constructor(
 
     companion object {
         private const val POLL_MS = 2000L
+        private const val INITIAL_DELAY_MS = 30_000L
         private const val FORCE_AFTER_MS = 90_000L
         private const val GIVE_UP_MS = 300_000L
     }
