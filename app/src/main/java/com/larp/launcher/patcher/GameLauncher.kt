@@ -90,9 +90,24 @@ class GameLauncher @Inject constructor(
         }
     }.flowOn(Dispatchers.IO)
 
-    private fun startGame(env: GameEnv, privateBepInEx: Boolean) {
+    fun launchVanilla(gamePackage: String = GameActivity.DEFAULT_GAME_PACKAGE): Flow<PatchProgress> = flow {
+        val env = gameEnvRepo.detect(gamePackage)
+        if (!env.isInstalled) {
+            emit(PatchProgress(PatchProgress.Stage.Failed, "Jogo base não instalado", 0f, IllegalStateException("Jogo não instalado: $gamePackage")))
+            return@flow
+        }
+        try {
+            NativeLibsInstaller.ensureInstalled(context)
+            emit(PatchProgress(PatchProgress.Stage.Ready, "Abrindo jogo sem mods…", 1f))
+            startGame(env, privateBepInEx = true, noMods = true)
+        } catch (t: Throwable) {
+            emit(PatchProgress(PatchProgress.Stage.Failed, t.message ?: "Erro", 0f, t))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    private fun startGame(env: GameEnv, privateBepInEx: Boolean, noMods: Boolean = false) {
         GameEnvFactory.reset()
-        val intent = GameActivity.newIntent(context, env.packageName, privateBepInEx)
+        val intent = GameActivity.newIntent(context, env.packageName, privateBepInEx, noMods)
         context.startActivity(intent)
     }
 }

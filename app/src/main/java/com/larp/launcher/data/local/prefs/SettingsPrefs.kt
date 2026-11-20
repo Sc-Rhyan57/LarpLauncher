@@ -13,7 +13,7 @@ private val Context.larpSettingsDataStore by preferencesDataStore(name = "larp_s
 class SettingsPrefs(private val context: Context) {
 
     val dynamicColor: Flow<Boolean> = context.larpSettingsDataStore.data
-        .map { it[KEY_DYNAMIC_COLOR] ?: false }
+        .map { it[KEY_DYNAMIC_COLOR] ?: true }
 
     val darkMode: Flow<String> = context.larpSettingsDataStore.data
         .map { it[KEY_DARK_MODE] ?: "system" }

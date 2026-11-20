@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class SettingsUiState(
-    val dynamicColor: Boolean = false,
+    val dynamicColor: Boolean = true,
     val darkMode: String = "system",
     val env: LarpEnv = LarpEnv()
 )

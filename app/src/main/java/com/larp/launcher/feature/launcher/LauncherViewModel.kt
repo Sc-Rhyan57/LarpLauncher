@@ -8,6 +8,7 @@ import com.larp.launcher.domain.model.BroadcastMessage
 import com.larp.launcher.domain.model.GameEnv
 import com.larp.launcher.domain.model.Room
 import com.larp.launcher.domain.model.User
+import com.larp.launcher.patcher.GameLauncher
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,7 +33,8 @@ data class LauncherUiState(
 @HiltViewModel
 class LauncherViewModel @Inject constructor(
     private val authRepo: AuthRepository,
-    private val gameEnvRepo: GameEnvRepository
+    private val gameEnvRepo: GameEnvRepository,
+    private val gameLauncher: GameLauncher
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LauncherUiState())
@@ -63,6 +65,12 @@ class LauncherViewModel @Inject constructor(
                     )
                 }
             }
+        }
+    }
+
+    fun launchWithoutMods() {
+        viewModelScope.launch {
+            runCatching { gameLauncher.launchVanilla().collect { _ -> } }
         }
     }
 

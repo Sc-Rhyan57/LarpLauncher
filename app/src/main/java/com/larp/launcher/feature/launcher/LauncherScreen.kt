@@ -121,7 +121,7 @@ fun LauncherScreen(
                 UserHeaderCard(state = state)
             }
             item(span = { GridItemSpan(2) }) {
-                GameStatusCard(state = state, onLaunchGame = onLaunchGame)
+                GameStatusCard(state = state, onLaunchGame = onLaunchGame, onLaunchVanilla = viewModel::launchWithoutMods)
             }
             items(quickAccess) { entry ->
                 QuickAccessCard(entry = entry, onClick = { onNavigateTo(entry.destination) })
@@ -164,7 +164,7 @@ private fun UserHeaderCard(state: LauncherUiState) {
 }
 
 @Composable
-private fun GameStatusCard(state: LauncherUiState, onLaunchGame: () -> Unit) {
+private fun GameStatusCard(state: LauncherUiState, onLaunchGame: () -> Unit, onLaunchVanilla: () -> Unit) {
     val env = state.gameEnv
     val installed = env?.isInstalled == true
     LarpCard(modifier = Modifier.fillMaxWidth()) {
@@ -206,6 +206,14 @@ private fun GameStatusCard(state: LauncherUiState, onLaunchGame: () -> Unit) {
                 Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(text = "Iniciar jogo", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            }
+            androidx.compose.material3.OutlinedButton(
+                onClick = onLaunchVanilla,
+                enabled = installed,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text(text = "Iniciar sem mods", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             }
             if (!installed) {
                 Text(

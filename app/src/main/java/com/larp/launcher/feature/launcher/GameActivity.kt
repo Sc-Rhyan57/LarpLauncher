@@ -125,6 +125,7 @@ class GameActivity : ComponentActivity() {
     }
 
     private fun loadMods(env: GameEnv) {
+        if (intent?.getBooleanExtra(EXTRA_NO_MODS, false) == true) return
         val privateMods = intent?.getBooleanExtra(EXTRA_PRIVATE_MODS, true) ?: true
         try {
             val domainEnv = com.larp.launcher.domain.model.GameEnv(
@@ -220,16 +221,20 @@ class GameActivity : ComponentActivity() {
     }
 
     private fun fail(message: String, throwable: Throwable?) {
-        val text = if (throwable != null) "$message\n\n${throwable.message}" else message
+        val text = if (throwable != null) "$message\n\n${Log.getStackTraceString(throwable)}" else message
         Log.e(TAG, text, throwable)
         val view = TextView(this).apply {
             this.text = text
             setTextColor(Color.WHITE)
-            textSize = 14f
+            setBackgroundColor(Color.BLACK)
+            textSize = 12f
             setPadding(48, 48, 48, 48)
-            gravity = Gravity.CENTER
+            setTextIsSelectable(true)
         }
-        setContentView(view)
+        setContentView(android.widget.ScrollView(this).apply {
+            setBackgroundColor(Color.BLACK)
+            addView(view)
+        })
         runBlocking { diario?.finish(message) }
     }
 
@@ -252,14 +257,16 @@ class GameActivity : ComponentActivity() {
         private const val ERROR_FILE = "ultimo_erro.txt"
         private const val EXTRA_PRIVATE_MODS = "mods_privados"
         private const val EXTRA_GAME_PACKAGE = "game_package"
+        private const val EXTRA_NO_MODS = "sem_mods"
         const val DEFAULT_GAME_PACKAGE = "com.innersloth.spacemafia"
         private const val MAX_WAIT_MS = 1_200_000L
 
-        fun newIntent(context: Context, gamePackage: String, privateMods: Boolean): Intent =
+        fun newIntent(context: Context, gamePackage: String, privateMods: Boolean, noMods: Boolean = false): Intent =
             Intent(context, GameActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 putExtra(EXTRA_GAME_PACKAGE, gamePackage)
                 putExtra(EXTRA_PRIVATE_MODS, privateMods)
+                putExtra(EXTRA_NO_MODS, noMods)
             }
 
         fun progressFor(stage: Int, msg: String): Int {
