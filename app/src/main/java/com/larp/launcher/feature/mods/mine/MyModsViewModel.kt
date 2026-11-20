@@ -80,9 +80,10 @@ class MyModsViewModel @Inject constructor(
         }
     }
 
-    fun updateMod(mod: LocalMod) {
+    fun updateMod(mod: LocalMod, coverUri: Uri? = null) {
         viewModelScope.launch {
-            runCatching { modsRepository.updateLocalMod(mod) }
+            val coverBytes = coverUri?.let { readBytes(it) }
+            runCatching { modsRepository.updateLocalMod(mod, coverBytes) }
         }
     }
 

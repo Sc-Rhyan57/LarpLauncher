@@ -80,6 +80,8 @@ fun MyModsScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showSheet by remember { mutableStateOf(false) }
+    var editingMod by remember { mutableStateOf<LocalMod?>(null) }
+    val editSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
 
@@ -157,10 +159,29 @@ fun MyModsScreen(
                 LocalModCard(
                     mod = mod,
                     onToggle = { viewModel.toggleEnabled(mod.id, it) },
-                    onEdit = { viewModel.updateMod(mod) },
+                    onEdit = { editingMod = mod },
                     onDelete = { viewModel.deleteMod(mod.id) }
                 )
             }
+        }
+    }
+
+    editingMod?.let { target ->
+        ModalBottomSheet(
+            onDismissRequest = { editingMod = null },
+            sheetState = editSheetState
+        ) {
+            EditLocalModForm(
+                mod = target,
+                onCancel = { editingMod = null },
+                onSave = { updated, coverUri ->
+                    viewModel.updateMod(updated, coverUri)
+                    scope.launch {
+                        editSheetState.hide()
+                        editingMod = null
+                    }
+                }
+            )
         }
     }
 
@@ -524,6 +545,119 @@ private fun AddLocalModForm(
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("Salvar")
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EditLocalModForm(
+    mod: LocalMod,
+    onCancel: () -> Unit,
+    onSave: (LocalMod, Uri?) -> Unit
+) {
+    var name by remember { mutableStateOf(mod.name) }
+    var description by remember { mutableStateOf(mod.description) }
+    var author by remember { mutableStateOf(mod.author) }
+    var version by remember { mutableStateOf(mod.version) }
+    var coverUri by remember { mutableStateOf<Uri?>(null) }
+
+    val coverPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) coverUri = uri
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 24.dp, top = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            text = "Editar mod",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold
+        )
+        OutlinedTextField(
+            value = name,
+            onValueChange = { name = it },
+            label = { Text("Nome do mod *") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        OutlinedTextField(
+            value = description,
+            onValueChange = { description = it },
+            label = { Text("Descrição") },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 2,
+            maxLines = 4
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = author,
+                onValueChange = { author = it },
+                label = { Text("Autor") },
+                modifier = Modifier.weight(1f),
+                singleLine = true
+            )
+            OutlinedTextField(
+                value = version,
+                onValueChange = { version = it },
+                label = { Text("Versão") },
+                modifier = Modifier.weight(1f),
+                singleLine = true
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val preview: Any? = coverUri ?: mod.coverPath?.takeIf { it.isNotBlank() }
+            if (preview != null) {
+                AsyncImage(
+                    model = preview,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(56.dp).clip(RoundedCornerShape(10.dp))
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+            }
+            FilledTonalButton(onClick = { coverPicker.launch("image/*") }) {
+                Icon(imageVector = Icons.Filled.Add, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = if (preview != null) "Trocar capa" else "Escolher capa")
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = onCancel,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Cancelar")
+            }
+            Button(
+                onClick = {
+                    onSave(
+                        mod.copy(
+                            name = name.trim(),
+                            description = description.trim(),
+                            author = author.trim(),
+                            version = version.trim().ifBlank { "1.0.0" }
+                        ),
+                        coverUri
+                    )
+                },
+                enabled = name.isNotBlank(),
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Salvar")
             }
         }
     }

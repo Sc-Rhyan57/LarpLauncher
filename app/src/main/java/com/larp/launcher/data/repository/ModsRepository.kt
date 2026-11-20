@@ -130,8 +130,16 @@ class ModsRepository @Inject constructor(
         localDao.upsert(entity)
     }
 
-    suspend fun updateLocalMod(mod: LocalMod) = withContext(Dispatchers.IO) {
-        localDao.update(mod.copy(updatedAt = System.currentTimeMillis()).toEntity())
+    suspend fun updateLocalMod(mod: LocalMod, coverBytes: ByteArray? = null) = withContext(Dispatchers.IO) {
+        var coverPath = mod.coverPath
+        if (coverBytes != null) {
+            val now = System.currentTimeMillis()
+            val file = File(cache.localRoot(), "${mod.id}.cover.$now.png")
+            file.writeBytes(coverBytes)
+            mod.coverPath?.let { File(it).delete() }
+            coverPath = file.absolutePath
+        }
+        localDao.update(mod.copy(coverPath = coverPath, updatedAt = System.currentTimeMillis()).toEntity())
     }
 
     suspend fun deleteLocalMod(id: String) = withContext(Dispatchers.IO) {

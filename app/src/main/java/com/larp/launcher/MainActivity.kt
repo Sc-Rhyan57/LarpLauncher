@@ -42,7 +42,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         console.i("MainActivity", "onCreate")
         setContent {
-            val dynamicColor by settingsPrefs.dynamicColor.collectAsStateWithLifecycle(initialValue = true)
+            val dynamicColor by settingsPrefs.dynamicColor.collectAsStateWithLifecycle(initialValue = false)
             val darkMode by settingsPrefs.darkMode.collectAsStateWithLifecycle(initialValue = "system")
             val isDark = when (darkMode) {
                 "dark" -> true

@@ -50,7 +50,7 @@ class GameActivity : ComponentActivity() {
         super.attachBaseContext(base)
         val gamePackage = intent?.getStringExtra(EXTRA_GAME_PACKAGE) ?: DEFAULT_GAME_PACKAGE
         env = GameEnv.init(base, gamePackage)
-        if (env != null) appContext = GameContext(base, env!!)
+        if (env != null) appContext = GameContext(base.applicationContext ?: base, env!!)
     }
 
     override fun getResources(): Resources = env?.resources ?: super.getResources()
