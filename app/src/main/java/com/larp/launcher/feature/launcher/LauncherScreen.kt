@@ -50,6 +50,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import com.larp.launcher.core.design.components.StarField
 import com.larp.launcher.core.design.components.LarpAvatar
 import com.larp.launcher.core.design.components.LarpCard
 import com.larp.launcher.core.design.components.LarpChip
@@ -80,7 +83,12 @@ fun LauncherScreen(
         QuickAccess(LarpDestination.Settings, "Ajustes", Icons.Filled.Settings)
     )
 
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    if (MaterialTheme.colorScheme.background.luminance() < 0.5f) {
+        StarField(modifier = Modifier.fillMaxSize())
+    }
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 title = { Text(text = "Larp Launcher", fontWeight = FontWeight.SemiBold) },
@@ -96,7 +104,7 @@ fun LauncherScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+                    containerColor = Color.Transparent
                 )
             )
         }
@@ -160,6 +168,7 @@ private fun UserHeaderCard(state: LauncherUiState) {
                 }
             }
         }
+    }
     }
 }
 

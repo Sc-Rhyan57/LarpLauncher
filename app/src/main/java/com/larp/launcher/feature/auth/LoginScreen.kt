@@ -3,18 +3,6 @@ package com.larp.launcher.feature.auth
 import android.net.Uri
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.background
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
-import androidx.compose.runtime.remember
-import androidx.compose.ui.geometry.Offset
-import kotlin.math.PI
-import kotlin.math.sin
-import kotlin.random.Random
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,6 +37,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.larp.launcher.core.design.components.StarField
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
@@ -160,56 +149,6 @@ fun LoginScreen(
             TextButton(onClick = onOpenLicenses) {
                 Text(text = "Sobre / Licenças", color = Color.White.copy(alpha = 0.7f))
             }
-        }
-    }
-}
-
-private class Star(
-    val x: Float,
-    val y: Float,
-    val radius: Float,
-    val drift: Int,
-    val twinkle: Int,
-    val phase: Float,
-    val warm: Boolean
-)
-
-@Composable
-private fun StarField(modifier: Modifier = Modifier) {
-    val stars = remember {
-        val random = Random(7)
-        List(90) {
-            Star(
-                x = random.nextFloat(),
-                y = random.nextFloat(),
-                radius = 0.6f + random.nextFloat() * 1.8f,
-                drift = 1 + random.nextInt(3),
-                twinkle = 2 + random.nextInt(5),
-                phase = random.nextFloat(),
-                warm = random.nextInt(5) == 0
-            )
-        }
-    }
-    val transition = rememberInfiniteTransition(label = "stars")
-    val t by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 40000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "starsT"
-    )
-    Canvas(modifier = modifier) {
-        val density = this.density
-        stars.forEach { star ->
-            val py = ((star.y + t * star.drift) % 1f) * size.height
-            val wave = (sin((t * star.twinkle + star.phase) * 2.0 * PI).toFloat() + 1f) / 2f
-            val alpha = 0.25f + 0.75f * wave
-            val color = if (star.warm) Color(0xFFFFE9B0) else Color.White
-            val r = star.radius * density
-            drawCircle(color = color.copy(alpha = alpha * 0.25f), radius = r * 2.6f, center = Offset(star.x * size.width, py))
-            drawCircle(color = color.copy(alpha = alpha), radius = r, center = Offset(star.x * size.width, py))
         }
     }
 }

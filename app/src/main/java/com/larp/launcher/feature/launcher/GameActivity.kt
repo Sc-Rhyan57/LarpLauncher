@@ -63,6 +63,7 @@ class GameActivity : ComponentActivity() {
     override fun getApplicationContext(): Context = appContext ?: super.getApplicationContext()
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        setTheme(android.R.style.Theme_Material_NoActionBar)
         super.onCreate(savedInstanceState)
         java.io.File(filesDir, ERROR_FILE).delete()
         val e = env

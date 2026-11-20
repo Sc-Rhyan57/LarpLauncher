@@ -26,7 +26,7 @@ fun LarpCard(
         shape = RoundedCornerShape(cornerRadius.dp),
         color = containerColor,
         contentColor = contentColor,
-        tonalElevation = 2.dp,
+        tonalElevation = 0.dp,
         shadowElevation = 1.dp
     ) {
         Box(modifier = Modifier.padding(padding)) {

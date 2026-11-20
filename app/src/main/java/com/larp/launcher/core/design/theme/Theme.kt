@@ -8,6 +8,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val LightColors = lightColorScheme(
@@ -77,13 +78,23 @@ fun LarpTheme(
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
-    val colorScheme = when {
+    val base = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
         darkTheme -> DarkColors
         else -> LightColors
     }
+    val colorScheme = if (darkTheme) base.copy(
+        background = Color.Black,
+        surface = Color.Black,
+        surfaceDim = Color.Black,
+        surfaceContainerLowest = Color.Black,
+        surfaceContainerLow = Color(0xFF0B0B0B),
+        surfaceContainer = Color(0xFF121212),
+        surfaceContainerHigh = Color(0xFF1A1A1A),
+        surfaceContainerHighest = Color(0xFF222222)
+    ) else base
 
     MaterialTheme(
         colorScheme = colorScheme,

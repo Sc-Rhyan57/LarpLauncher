@@ -16,9 +16,9 @@
     <color name="larp_on_error">#690005</color>
     <color name="larp_error_container">#93000A</color>
     <color name="larp_on_error_container">#FFDAD6</color>
-    <color name="larp_background">#181213</color>
+    <color name="larp_background">#000000</color>
     <color name="larp_on_background">#EDE0E0</color>
-    <color name="larp_surface">#181213</color>
+    <color name="larp_surface">#000000</color>
     <color name="larp_on_surface">#EDE0E0</color>
     <color name="larp_surface_variant">#524344</color>
     <color name="larp_on_surface_variant">#D7C0C1</color>
