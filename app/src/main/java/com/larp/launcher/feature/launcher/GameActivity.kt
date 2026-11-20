@@ -83,7 +83,7 @@ class GameActivity : ComponentActivity() {
         Thread.currentThread().contextClassLoader = classLoader
         playerClass = classLoader.loadClass("com.unity3d.player.UnityPlayer")
         loadMods(env)
-        runCatching { classLoader.loadClass("com.innersloth.spacemafia.EosUnityPlayerActivity") }
+        runCatching { Class.forName("com.innersloth.spacemafia.EosUnityPlayerActivity", true, classLoader) }
         val lifecycleEvents = classLoader.loadClass("com.unity3d.player.IUnityPlayerLifecycleEvents")
         val events = Proxy.newProxyInstance(classLoader, arrayOf(lifecycleEvents), UnityEventsHandler(this))
         val player = playerClass!!.getConstructor(Context::class.java, lifecycleEvents).newInstance(this, events)
@@ -98,22 +98,11 @@ class GameActivity : ComponentActivity() {
     }
 
     private fun loadEosSdkSafely(classLoader: ClassLoader) {
-        runCatching {
-            val candidates = listOf("libEOSSDK.so", "libepicgames-eossdk.so", "libeossdk.so")
-            val applicationInfo = env?.appInfo
-            val nativeLibDir = applicationInfo?.nativeLibraryDir
-            if (nativeLibDir != null) {
-                val libDir = File(nativeLibDir)
-                if (libDir.isDirectory) {
-                    for (candidate in candidates) {
-                        val libFile = File(libDir, candidate)
-                        if (libFile.isFile) {
-                            val libName = candidate.removePrefix("lib").removeSuffix(".so")
-                            runCatching { System.loadLibrary(libName) }
-                            break
-                        }
-                    }
-                }
+        val from = playerClass
+        if (from != null) {
+            for (libName in listOf("EOSSDK", "epicgames-eossdk", "eossdk")) {
+                val found = (classLoader as? dalvik.system.BaseDexClassLoader)?.findLibrary(libName) != null
+                if (found && loadInGameLoader(libName, from)) break
             }
         }
         runCatching {
@@ -123,6 +112,28 @@ class GameActivity : ComponentActivity() {
         }.onFailure { t ->
             Log.w(TAG, "EOSSDK init falhou (jogo pode rodar sem EOS): ${t.message}")
         }
+    }
+
+    private fun loadInGameLoader(libName: String, from: Class<*>): Boolean {
+        val runtime = Runtime.getRuntime()
+        val attempts = listOf<() -> Unit>(
+            {
+                runtime.javaClass.getDeclaredMethod("loadLibrary0", Class::class.java, String::class.java)
+                    .apply { isAccessible = true }.invoke(runtime, from, libName)
+            },
+            {
+                runtime.javaClass.getDeclaredMethod("loadLibrary0", ClassLoader::class.java, Class::class.java, String::class.java)
+                    .apply { isAccessible = true }.invoke(runtime, from.classLoader, from, libName)
+            },
+            {
+                runtime.javaClass.getDeclaredMethod("loadLibrary0", ClassLoader::class.java, String::class.java)
+                    .apply { isAccessible = true }.invoke(runtime, from.classLoader, libName)
+            }
+        )
+        for (attempt in attempts) {
+            if (runCatching(attempt).isSuccess) return true
+        }
+        return runCatching { System.loadLibrary(libName) }.isSuccess
     }
 
     private fun loadMods(env: GameEnv) {
