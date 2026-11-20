@@ -69,11 +69,17 @@ class ModRuntime @Inject constructor(
         val bepKeyBase = if (privateBepInEx) "bundle_bep_privado_" else "bundle_bep_externo_"
         val bepKey = bepKeyBase + bepFingerprint
         if (prefs.getInt(bepKey, 0) != BUNDLE_VERSION || !File(bepinexDir, "core/BepInEx.Core.dll").isFile) {
-            Log.i(TAG, "Extraindo BepInEx em $bepinexDir")
-            onProgress("Extraindo BepInEx…", 0.45f)
-            deleteTree(File(bepinexDir, "core"))
-            unzipSource(runtimeDownloader.bepinexSource(), bepinexDir, true)
-            prefs.edit().putInt(bepKey, BUNDLE_VERSION).apply()
+            val bepinexSource = runtimeDownloader.bepinexSource()
+            if (bepinexSource != null) {
+                Log.i(TAG, "Extraindo BepInEx em $bepinexDir")
+                onProgress("Extraindo BepInEx…", 0.45f)
+                deleteTree(File(bepinexDir, "core"))
+                unzipSource(bepinexSource, bepinexDir, true)
+                prefs.edit().putInt(bepKey, BUNDLE_VERSION).apply()
+            } else {
+                Log.i(TAG, "BepInEx ausente — rodando só com .NET runtime + hooks nativos")
+                onProgress("Sem BepInEx — prosseguindo…", 0.45f)
+            }
         }
 
         val metadataFile = File(gameDataDir, "Managed/Metadata/global-metadata.dat")

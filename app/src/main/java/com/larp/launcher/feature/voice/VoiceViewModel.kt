@@ -78,6 +78,7 @@ class VoiceViewModel @Inject constructor(
                         participants = participants
                     )
                 }
+                setConnectedPref(connected = true)
                 FloatingVoiceBubbleService.show(context)
                 console.i("Voice", "Conectado; bolinha flutuante iniciada")
             } catch (t: Throwable) {
@@ -95,6 +96,7 @@ class VoiceViewModel @Inject constructor(
     fun disconnect() {
         console.i("Voice", "Desconectando e fechando bolinha")
         FloatingVoiceBubbleService.hide(context)
+        setConnectedPref(connected = false)
         _state.update {
             it.copy(
                 connected = false,
@@ -109,7 +111,7 @@ class VoiceViewModel @Inject constructor(
 
     fun toggleMute() {
         val newMuted = !_state.value.muted
-        console.d("Voice", "Toggle mute → $newMuted")
+        console.d("Voice", "Toggle mute -> $newMuted")
         FloatingVoiceBubbleService.toggleMute(context)
         _state.update {
             it.copy(
@@ -125,6 +127,13 @@ class VoiceViewModel @Inject constructor(
         }
     }
 
+    private fun setConnectedPref(connected: Boolean) {
+        context.getSharedPreferences("larp_voice", Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean("connected", connected)
+            .apply()
+    }
+
     override fun onCleared() {
         if (_state.value.connected) {
             FloatingVoiceBubbleService.hide(context)
@@ -132,4 +141,5 @@ class VoiceViewModel @Inject constructor(
         super.onCleared()
     }
 }
+
 

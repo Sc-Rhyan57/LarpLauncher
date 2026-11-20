@@ -220,6 +220,7 @@ class GameActivity : ComponentActivity() {
         if (modsLoaded) showProgress()
         loadEosSdkSafely(classLoader)
         maybeStartDevKitOverlay()
+        maybeStartVoiceBubble()
         Log.i(TAG, "UnityPlayer criado")
     }
 
@@ -241,6 +242,23 @@ class GameActivity : ComponentActivity() {
             devKitStarted = true
             Log.i(TAG, "Dev Kit overlay iniciado")
         }.onFailure { Log.w(TAG, "Falha ao iniciar Dev Kit overlay: ${it.message}") }
+    }
+
+    private fun maybeStartVoiceBubble() {
+        if (!android.provider.Settings.canDrawOverlays(this)) {
+            Log.i(TAG, "Voice bubble pulado: SYSTEM_ALERT_WINDOW não concedido")
+            return
+        }
+        val prefs = getSharedPreferences("larp_voice", android.content.Context.MODE_PRIVATE)
+        val connected = prefs.getBoolean("connected", false)
+        if (!connected) {
+            Log.i(TAG, "Voice bubble pulado: usuário não está em chamada")
+            return
+        }
+        runCatching {
+            com.larp.launcher.feature.voice.FloatingVoiceBubbleService.show(this)
+            Log.i(TAG, "Voice bubble iniciado sobre o jogo")
+        }.onFailure { Log.w(TAG, "Falha ao iniciar voice bubble: ${it.message}") }
     }
 
     private fun loadEosSdkSafely(classLoader: ClassLoader) {

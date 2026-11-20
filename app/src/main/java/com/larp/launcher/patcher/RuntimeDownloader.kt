@@ -36,17 +36,17 @@ class RuntimeDownloader @Inject constructor(
 
     fun hasBepinex(): Boolean = hasBepinexAsset() || bepinexZip().isFile
 
-    fun hasRuntime(): Boolean = hasDotnet() && hasBepinex()
+    fun hasRuntime(): Boolean = hasDotnet()
 
     fun dotnetSource(): RuntimeSource =
         if (hasDotnetAsset()) RuntimeSource.Asset(context, "dotnet-arm64.zip")
         else if (dotnetZip().isFile) RuntimeSource.File(dotnetZip())
         else throw IOException("dotnet-arm64.zip indisponível")
 
-    fun bepinexSource(): RuntimeSource =
+    fun bepinexSource(): RuntimeSource? =
         if (hasBepinexAsset()) RuntimeSource.Asset(context, "BepInEx-arm64.zip")
         else if (bepinexZip().isFile) RuntimeSource.File(bepinexZip())
-        else throw IOException("BepInEx-arm64.zip indisponível")
+        else null
 
     suspend fun downloadDotnet(onProgress: suspend (Float) -> Unit = {}): File = withContext(Dispatchers.IO) {
         val env = envProvider.current()
@@ -63,34 +63,35 @@ class RuntimeDownloader @Inject constructor(
     }
 
     suspend fun ensureRuntime(onProgress: suspend (String, Float) -> Unit): EnsureResult = withContext(Dispatchers.IO) {
-        val missing = mutableListOf<String>()
-        if (!hasDotnet()) missing.add("dotnet")
-        if (!hasBepinex()) missing.add("bepinex")
-        if (missing.isEmpty()) return@withContext EnsureResult.AlreadyAvailable
-
-        var total = 0f
-        for (target in missing) {
-            when (target) {
-                "dotnet" -> {
-                    if (hasDotnetAsset()) continue
-                    onProgress("Baixando runtime .NET…", total)
-                    val base = total
-                    downloadDotnet { p ->
-                        onProgress("Baixando runtime .NET…", base + p * 0.5f)
-                    }
-                    total += 0.5f
-                }
-                "bepinex" -> {
-                    if (hasBepinexAsset()) continue
-                    onProgress("Baixando BepInEx…", total)
-                    val base = total
+        if (hasDotnet()) {
+            if (!hasBepinex()) {
+                val env = envProvider.current()
+                if (env.runtimeBepinexUrl.isNotBlank() && !hasBepinexAsset()) {
+                    onProgress("Baixando BepInEx…", 0f)
+                    val base = 0f
                     downloadBepinex { p ->
-                        onProgress("Baixando BepInEx…", base + p * 0.5f)
+                        onProgress("Baixando BepInEx…", base + p)
                     }
-                    total = 1f
                 }
             }
+            return@withContext EnsureResult.AlreadyAvailable
         }
+
+        onProgress("Baixando runtime .NET…", 0f)
+        val base = 0f
+        downloadDotnet { p ->
+            onProgress("Baixando runtime .NET…", base + p * 0.9f)
+        }
+
+        val env = envProvider.current()
+        if (env.runtimeBepinexUrl.isNotBlank() && !hasBepinexAsset()) {
+            onProgress("Baixando BepInEx…", 0.9f)
+            val bbase = 0.9f
+            downloadBepinex { p ->
+                onProgress("Baixando BepInEx…", bbase + p * 0.1f)
+            }
+        }
+
         onProgress("Runtime pronto", 1f)
         EnsureResult.Downloaded
     }
