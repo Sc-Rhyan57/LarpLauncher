@@ -1,164 +1,136 @@
 package com.larp.launcher.patcher
 
 import android.content.Context
-import android.util.Log
-import com.larp.launcher.core.LarpEnvProvider
+import com.larp.launcher.data.local.cache.ModCacheManager
+import com.larp.launcher.data.repository.GameEnvRepository
+import com.larp.launcher.domain.model.GameEnv
+import com.larp.launcher.domain.model.PatchProgress
+import com.larp.launcher.feature.launcher.GameActivity
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import java.io.File
-import java.io.IOException
-import java.io.RandomAccessFile
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class RuntimeDownloader @Inject constructor(
+class GameLauncher @Inject constructor(
     private val context: Context,
-    private val client: OkHttpClient,
-    private val envProvider: LarpEnvProvider
+    private val gameEnvRepo: GameEnvRepository,
+    private val modRuntime: ModRuntime,
+    private val modSync: ModSync,
+    private val cache: ModCacheManager,
+    private val runtimeDownloader: RuntimeDownloader
 ) {
 
-    fun runtimeDir(): File = File(context.filesDir, "runtime").apply { mkdirs() }
-
-    fun dotnetZip(): File = File(runtimeDir(), "dotnet-arm64.zip")
-
-    fun bepinexZip(): File = File(runtimeDir(), "BepInEx-arm64.zip")
-
-    fun hasDotnetAsset(): Boolean =
-        context.assets.list("").orEmpty().contains("dotnet-arm64.zip")
-
-    fun hasBepinexAsset(): Boolean =
-        context.assets.list("").orEmpty().contains("BepInEx-arm64.zip")
-
-    fun hasDotnet(): Boolean = hasDotnetAsset() || dotnetZip().isFile
-
-    fun hasBepinex(): Boolean = hasBepinexAsset() || bepinexZip().isFile
-
-    fun hasRuntime(): Boolean = hasDotnet() && hasBepinex()
-
-    fun dotnetSource(): RuntimeSource =
-        if (hasDotnetAsset()) RuntimeSource.Asset(context, "dotnet-arm64.zip")
-        else if (dotnetZip().isFile) RuntimeSource.File(dotnetZip())
-        else throw IOException("dotnet-arm64.zip indisponível")
-
-    fun bepinexSource(): RuntimeSource =
-        if (hasBepinexAsset()) RuntimeSource.Asset(context, "BepInEx-arm64.zip")
-        else if (bepinexZip().isFile) RuntimeSource.File(bepinexZip())
-        else throw IOException("BepInEx-arm64.zip indisponível")
-
-    suspend fun downloadDotnet(onProgress: suspend (Float) -> Unit = {}): File = withContext(Dispatchers.IO) {
-        val env = envProvider.current()
-        val url = env.runtimeDotnetUrl.trim()
-        if (url.isBlank()) throw IOException("URL do runtime .NET não configurada em Ajustes")
-        downloadTo(url, dotnetZip(), onProgress)
-    }
-
-    suspend fun downloadBepinex(onProgress: suspend (Float) -> Unit = {}): File = withContext(Dispatchers.IO) {
-        val env = envProvider.current()
-        val url = env.runtimeBepinexUrl.trim()
-        if (url.isBlank()) throw IOException("URL do BepInEx não configurada em Ajustes")
-        downloadTo(url, bepinexZip(), onProgress)
-    }
-
-    suspend fun ensureRuntime(onProgress: suspend (String, Float) -> Unit): EnsureResult = withContext(Dispatchers.IO) {
-        val missing = mutableListOf<String>()
-        if (!hasDotnet()) missing.add("dotnet")
-        if (!hasBepinex()) missing.add("bepinex")
-        if (missing.isEmpty()) return@withContext EnsureResult.AlreadyAvailable
-
-        var total = 0f
-        for (target in missing) {
-            when (target) {
-                "dotnet" -> {
-                    if (hasDotnetAsset()) continue
-                    onProgress("Baixando runtime .NET…", total)
-                    val base = total
-                    downloadDotnet { p ->
-                        onProgress("Baixando runtime .NET…", base + p * 0.5f)
-                    }
-                    total += 0.5f
-                }
-                "bepinex" -> {
-                    if (hasBepinexAsset()) continue
-                    onProgress("Baixando BepInEx…", total)
-                    val base = total
-                    downloadBepinex { p ->
-                        onProgress("Baixando BepInEx…", base + p * 0.5f)
-                    }
-                    total = 1f
+    fun launchWithMods(modIds: List<String>, privateBepInEx: Boolean = true, gamePackage: String = GameActivity.DEFAULT_GAME_PACKAGE): Flow<PatchProgress> = flow {
+        emit(PatchProgress(PatchProgress.Stage.Downloading, "Iniciando sincronização…", 0f))
+        val env = gameEnvRepo.detect(gamePackage)
+        if (!env.isInstalled) {
+            emit(PatchProgress(PatchProgress.Stage.Failed, "Jogo base não instalado", 0f, IllegalStateException("Jogo não instalado: $gamePackage")))
+            return@flow
+        }
+        try {
+            if (!runtimeDownloader.hasRuntime()) {
+                emit(PatchProgress(PatchProgress.Stage.Downloading, "Baixando runtime de mods…", 0.05f))
+                runtimeDownloader.ensureRuntime { msg, p ->
+                    emit(PatchProgress(PatchProgress.Stage.Downloading, msg, p))
                 }
             }
-        }
-        onProgress("Runtime pronto", 1f)
-        EnsureResult.Downloaded
-    }
-
-    private suspend fun downloadTo(url: String, target: File, onProgress: suspend (Float) -> Unit): File {
-        target.parentFile?.mkdirs()
-        val tmp = File(target.parentFile, target.name + ".part")
-        if (tmp.exists()) tmp.delete()
-        Log.i(TAG, "Baixando $url -> ${target.name}")
-        val request = Request.Builder().url(url).get().build()
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                throw IOException("HTTP ${response.code} ao baixar ${target.name} de $url")
+            modSync.run(modIds) { name, downloading, progress ->
+                val stage = if (downloading) PatchProgress.Stage.Downloading else PatchProgress.Stage.Decrypting
+                val msg = if (downloading) "Baixando $name…" else "Descompactando $name…"
+                emit(PatchProgress(stage, msg, progress))
             }
-            val body = response.body ?: throw IOException("Resposta vazia ao baixar ${target.name}")
-            val total = body.contentLength()
-            RandomAccessFile(tmp, "rw").use { raf ->
-                raf.setLength(0)
-                body.byteStream().use { input ->
-                    val buffer = ByteArray(64 * 1024)
-                    var read = 0L
-                    while (true) {
-                        val n = input.read(buffer)
-                        if (n <= 0) break
-                        raf.write(buffer, 0, n)
-                        read += n
-                        if (total > 0) onProgress(read.toFloat() / total.toFloat())
-                    }
-                    if (total > 0 && read != total) {
-                        throw IOException("Download incompleto de ${target.name}: $read/$total bytes")
-                    }
+            emit(PatchProgress(PatchProgress.Stage.Preparing, "Preparando runtime .NET…", 0f))
+            NativeLibsInstaller.ensureInstalled(context)
+            emit(PatchProgress(PatchProgress.Stage.Ready, "Abrindo jogo com injeção…", 1f))
+            startGame(env, privateBepInEx)
+        } catch (t: Throwable) {
+            emit(PatchProgress(PatchProgress.Stage.Failed, t.message ?: "Erro", 0f, t))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    fun launchLocalMods(dllPaths: List<String>, privateBepInEx: Boolean = true, gamePackage: String = GameActivity.DEFAULT_GAME_PACKAGE): Flow<PatchProgress> = flow {
+        val env = gameEnvRepo.detect(gamePackage)
+        if (!env.isInstalled) {
+            emit(PatchProgress(PatchProgress.Stage.Failed, "Jogo base não instalado", 0f, IllegalStateException("Jogo não instalado: $gamePackage")))
+            return@flow
+        }
+        try {
+            if (!runtimeDownloader.hasRuntime()) {
+                emit(PatchProgress(PatchProgress.Stage.Downloading, "Baixando runtime de mods…", 0.05f))
+                runtimeDownloader.ensureRuntime { msg, p ->
+                    emit(PatchProgress(PatchProgress.Stage.Downloading, msg, p))
                 }
             }
+            if (!runtimeDownloader.hasRuntime()) {
+                val msg = "Runtime indisponível. Configure as URLs em Ajustes → Runtime."
+                emit(PatchProgress(PatchProgress.Stage.Failed, msg, 0f, IllegalStateException(msg)))
+                return@flow
+            }
+            emit(PatchProgress(PatchProgress.Stage.Installing, "Copiando DLLs locais…", 0.1f))
+            val plugins = cache.bepinexPluginsDir().apply { mkdirs() }
+            dllPaths.forEachIndexed { index, src ->
+                val file = File(src)
+                if (file.isFile) file.copyTo(File(plugins, file.name), overwrite = true)
+                emit(PatchProgress(PatchProgress.Stage.Installing, "Copiando ${file.name}…", 0.1f + 0.4f * (index + 1) / dllPaths.size))
+            }
+            emit(PatchProgress(PatchProgress.Stage.Preparing, "Preparando runtime .NET…", 0.6f))
+            NativeLibsInstaller.ensureInstalled(context)
+            emit(PatchProgress(PatchProgress.Stage.Ready, "Abrindo jogo com injeção…", 1f))
+            startGame(env, privateBepInEx)
+        } catch (t: Throwable) {
+            emit(PatchProgress(PatchProgress.Stage.Failed, t.message ?: "Erro", 0f, t))
         }
-        if (target.exists()) target.delete()
-        if (!tmp.renameTo(target)) {
-            tmp.copyTo(target, overwrite = true)
-            tmp.delete()
+    }.flowOn(Dispatchers.IO)
+
+    fun launchFridaAgent(agentJsPath: String, gamePackage: String = GameActivity.DEFAULT_GAME_PACKAGE): Flow<PatchProgress> = flow {
+        val env = gameEnvRepo.detect(gamePackage)
+        if (!env.isInstalled) {
+            emit(PatchProgress(PatchProgress.Stage.Failed, "Jogo base não instalado", 0f, IllegalStateException("Jogo não instalado: $gamePackage")))
+            return@flow
         }
-        Log.i(TAG, "${target.name} baixado (${target.length()} bytes)")
-        return target
-    }
-
-    fun deleteDownloaded() {
-        listOf(
-            dotnetZip(),
-            bepinexZip(),
-            File(dotnetZip().parentFile, dotnetZip().name + ".part"),
-            File(bepinexZip().parentFile, bepinexZip().name + ".part")
-        ).forEach { it.delete() }
-    }
-
-    sealed class EnsureResult {
-        object AlreadyAvailable : EnsureResult()
-        object Downloaded : EnsureResult()
-    }
-
-    sealed class RuntimeSource {
-        abstract fun open(): java.io.InputStream
-        data class Asset(val context: Context, val name: String) : RuntimeSource() {
-            override fun open() = context.assets.open(name)
+        try {
+            emit(PatchProgress(PatchProgress.Stage.Installing, "Instalando Frida gadget…", 0f))
+            val nativeDir = NativeLibsInstaller.ensureInstalled(context)
+            val gadget = File(nativeDir, "libfrida-gadget.so").takeIf { it.isFile }
+                ?: throw IllegalStateException("libfrida-gadget.so não bundled no APK")
+            val agent = File(agentJsPath)
+            val config = File(context.filesDir, "frida/libfrida-gadget.config.so").takeIf { it.isFile }
+            NativeLibsInstaller.installFridaGadget(context, gadget, agent, config)
+            emit(PatchProgress(PatchProgress.Stage.Preparing, "Preparando runtime…", 0f))
+            modRuntime.prepare(env, privateBepInEx = false)
+            emit(PatchProgress(PatchProgress.Stage.Ready, "Abrindo jogo com Frida…", 1f))
+            val hasRuntime = "dotnet-arm64.zip" in context.assets.list("").orEmpty()
+            startGame(env, privateBepInEx = false, noMods = !hasRuntime)
+        } catch (t: Throwable) {
+            emit(PatchProgress(PatchProgress.Stage.Failed, t.message ?: "Erro", 0f, t))
         }
-        data class File(val file: java.io.File) : RuntimeSource() {
-            override fun open() = file.inputStream()
-        }
-    }
+    }.flowOn(Dispatchers.IO)
 
-    companion object {
-        private const val TAG = "LarpRuntime"
+    fun launchVanilla(gamePackage: String = GameActivity.DEFAULT_GAME_PACKAGE): Flow<PatchProgress> = flow {
+        val env = gameEnvRepo.detect(gamePackage)
+        if (!env.isInstalled) {
+            emit(PatchProgress(PatchProgress.Stage.Failed, "Jogo base não instalado", 0f, IllegalStateException("Jogo não instalado: $gamePackage")))
+            return@flow
+        }
+        try {
+            NativeLibsInstaller.ensureInstalled(context)
+            emit(PatchProgress(PatchProgress.Stage.Ready, "Abrindo jogo sem mods…", 1f))
+            startGame(env, privateBepInEx = true, noMods = true)
+        } catch (t: Throwable) {
+            emit(PatchProgress(PatchProgress.Stage.Failed, t.message ?: "Erro", 0f, t))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    private fun startGame(env: GameEnv, privateBepInEx: Boolean, noMods: Boolean = false) {
+        GameEnvFactory.reset()
+        val intent = GameActivity.newIntent(context, env.packageName, privateBepInEx, noMods)
+        context.startActivity(intent)
     }
 }
+
+
+
