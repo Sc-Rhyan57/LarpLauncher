@@ -17,7 +17,8 @@ class GameEnv private constructor(
     val classLoader: ClassLoader,
     val gameContext: Context,
     val resources: Resources,
-    val nativeLibsDir: File
+    val nativeLibsDir: File,
+    val gameNativeLibDir: File
 ) {
 
     fun interface Listener {
@@ -66,9 +67,11 @@ class GameEnv private constructor(
             if (bootDex != null) classpath.append(File.pathSeparator).append(bootDex.absolutePath)
 
             val nativeLibsDir = NativeLibsInstaller.ensureInstalled(context)
+            val gameNativeLibDir = resolveGameLibs(context, gamePackage, gameAppInfo)
             val libSearchPath = buildString {
                 append(nativeLibsDir.absolutePath).append(File.pathSeparator)
                 append(launcherAppInfo.nativeLibraryDir).append(File.pathSeparator)
+                append(gameNativeLibDir.absolutePath).append(File.pathSeparator)
                 append(gameAppInfo.nativeLibraryDir)
             }
             val parent = ClassLoader.getSystemClassLoader().parent
@@ -92,8 +95,66 @@ class GameEnv private constructor(
                 classLoader = classLoader,
                 gameContext = gameContext,
                 resources = gameContext.resources,
-                nativeLibsDir = nativeLibsDir
+                nativeLibsDir = nativeLibsDir,
+                gameNativeLibDir = gameNativeLibDir
             )
+        }
+
+        private fun hasGameLibs(dir: File): Boolean =
+            File(dir, "libunity.so").isFile && File(dir, "libil2cpp.so").isFile
+
+        private fun resolveGameLibs(context: Context, gamePackage: String, gameAppInfo: ApplicationInfo): File {
+            val original = File(gameAppInfo.nativeLibraryDir ?: "")
+            if (hasGameLibs(original)) return original
+
+            val target = File(context.filesDir, "gamelibs")
+            val marker = File(target, "origem.txt")
+            val lastUpdate = runCatching { context.packageManager.getPackageInfo(gamePackage, 0).lastUpdateTime }.getOrDefault(0L)
+            val stamp = "$gamePackage:$lastUpdate:${gameAppInfo.sourceDir}"
+            if (hasGameLibs(target) && marker.isFile && marker.readText() == stamp) return target
+
+            val apks = ArrayList<String>()
+            gameAppInfo.sourceDir?.let { apks.add(it) }
+            gameAppInfo.splitSourceDirs?.let { apks.addAll(it) }
+
+            val abi = android.os.Build.SUPPORTED_ABIS.firstOrNull { candidate ->
+                apks.any { apk ->
+                    runCatching {
+                        java.util.zip.ZipFile(apk).use { zip ->
+                            zip.entries().asSequence().any { it.name.startsWith("lib/$candidate/") && it.name.endsWith(".so") }
+                        }
+                    }.getOrDefault(false)
+                }
+            } ?: return original
+
+            target.deleteRecursively()
+            target.mkdirs()
+            val prefix = "lib/$abi/"
+            for (apk in apks) {
+                runCatching {
+                    java.util.zip.ZipFile(apk).use { zip ->
+                        for (entry in zip.entries()) {
+                            if (entry.isDirectory || !entry.name.startsWith(prefix) || !entry.name.endsWith(".so")) continue
+                            val name = entry.name.substring(prefix.length)
+                            if (name.contains('/')) continue
+                            val dest = File(target, name)
+                            val part = File(target, "$name.part")
+                            zip.getInputStream(entry).use { input ->
+                                part.outputStream().use { output -> input.copyTo(output, 65536) }
+                            }
+                            dest.delete()
+                            if (!part.renameTo(dest)) throw IOException("Não consegui gravar ${dest.name}")
+                        }
+                    }
+                }.onFailure { Log.w(TAG, "Falha ao extrair libs de $apk", it) }
+            }
+            if (!hasGameLibs(target)) {
+                Log.w(TAG, "libunity.so/libil2cpp.so não encontrados em $original nem nos APKs do jogo")
+                return if (original.isDirectory) original else target
+            }
+            marker.writeText(stamp)
+            Log.i(TAG, "Libs do jogo extraídas para $target")
+            return target
         }
 
         private fun extractBootDex(context: Context): File? {

@@ -32,7 +32,7 @@ class InteropPronto @Inject constructor(
             val pkgInfo = pm.getPackageInfo(envProvider.current().gamePackage, 0)
             val versionCode = if (android.os.Build.VERSION.SDK_INT >= 28) pkgInfo.longVersionCode else pkgInfo.versionCode.toLong()
             val appInfo = pkgInfo.applicationInfo ?: throw IOException("ApplicationInfo nulo para o jogo")
-            val libil2cpp = File(appInfo.nativeLibraryDir, "libil2cpp.so")
+            val libil2cpp = File(GameEnv.get()?.gameNativeLibDir ?: File(appInfo.nativeLibraryDir), "libil2cpp.so")
             val bepinexDir = cache.bepinexDir()
             val interopDir = File(bepinexDir, "interop")
             val marcaFile = File(interopDir, MARCA)

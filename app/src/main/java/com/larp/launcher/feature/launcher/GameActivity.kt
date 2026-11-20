@@ -126,7 +126,7 @@ class GameActivity : ComponentActivity() {
                     packageName = e.gamePackage,
                     versionName = "",
                     versionCode = 0,
-                    nativeLibraryDir = e.appInfo.nativeLibraryDir ?: "",
+                    nativeLibraryDir = e.gameNativeLibDir.absolutePath,
                     sourceDir = e.appInfo.sourceDir ?: "",
                     isInstalled = true
                 )
