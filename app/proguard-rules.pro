@@ -40,3 +40,5 @@
 -keep class com.regis.boot.** { *; }
 -keep class com.larp.launcher.boot.** { *; }
 -keepclasseswithmembernames class * { native <methods>; }
+
+-keep class com.larp.launcher.boot.GameBoot { *; }

@@ -1,33 +1,77 @@
 package com.regis.boot
 
+import android.system.Os
+import android.util.Log
+import java.io.File
+import java.io.RandomAccessFile
 import java.util.concurrent.CopyOnWriteArrayList
 
 object Boot {
 
-    @JvmField @Volatile var stage: Int = 0
-    @JvmField @Volatile var message: String = ""
+    private const val TAG = "LarpBoot"
+    private const val TAIL_BYTES = 24_000L
+    private const val MAX_HISTORY = 200
+    private val STATUS_FILES = listOf("fusion.stage", "fusion.msg", "fusion.log")
 
     private val history = CopyOnWriteArrayList<String>()
+    @Volatile private var localStage = 0
+    @Volatile private var localMessage = ""
+
+    private fun statusDir(): File? =
+        Os.getenv("FUSION_LOG_DIR")?.takeIf { it.isNotBlank() }?.let { File(it) }
+
+    private fun readStatus(name: String): String? {
+        val dir = statusDir() ?: return null
+        val file = File(dir, name)
+        return runCatching { if (file.isFile) file.readText().trim() else null }.getOrNull()
+    }
+
+    val stage: Int get() = readStatus("fusion.stage")?.toIntOrNull() ?: localStage
+
+    val message: String get() = readStatus("fusion.msg")?.takeIf { it.isNotEmpty() } ?: localMessage
 
     @JvmStatic
     fun status(stage: Int, message: String?) {
-        this.stage = stage
-        val text = message ?: ""
-        this.message = text
-        if (text.isNotBlank()) {
-            history.add(text)
-            while (history.size > 200) history.removeAt(0)
-        }
-        android.util.Log.i("LarpBoot", "stage=$stage $text")
+        localStage = stage
+        val text = message.orEmpty()
+        localMessage = text
+        note(text)
+        Log.i(TAG, "stage=$stage $text")
     }
 
     @JvmStatic
-    fun lines(): List<String> = history.toList()
+    fun note(text: String) {
+        if (text.isBlank()) return
+        history.add(text)
+        while (history.size > MAX_HISTORY) history.removeAt(0)
+    }
+
+    @JvmStatic
+    fun lines(): List<String> = history.toList() + fusionLog()
 
     @JvmStatic
     fun clear() {
-        stage = 0
-        message = ""
+        localStage = 0
+        localMessage = ""
         history.clear()
+        val dir = statusDir() ?: return
+        STATUS_FILES.forEach { name -> runCatching { File(dir, name).delete() } }
+    }
+
+    private fun fusionLog(): List<String> {
+        val dir = statusDir() ?: return emptyList()
+        val file = File(dir, "fusion.log")
+        if (!file.isFile) return emptyList()
+        return runCatching {
+            RandomAccessFile(file, "r").use { raf ->
+                val size = raf.length()
+                val start = maxOf(0L, size - TAIL_BYTES)
+                raf.seek(start)
+                val buffer = ByteArray((size - start).toInt())
+                raf.readFully(buffer)
+                val all = String(buffer, Charsets.UTF_8).lines().filter { it.isNotBlank() }
+                if (start > 0) all.drop(1) else all
+            }
+        }.getOrDefault(emptyList())
     }
 }

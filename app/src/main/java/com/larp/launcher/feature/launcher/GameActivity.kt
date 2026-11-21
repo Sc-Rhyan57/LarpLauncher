@@ -144,8 +144,9 @@ class GameActivity : ComponentActivity() {
                 }
                 if (ok) {
                     runOnUiThread { status.text = if (isPt) "Iniciando BepInEx…" else "Starting BepInEx…" }
-                    Boot.load("fusion")
-                    if (Boot.stage < 1) throw IllegalStateException(Boot.message)
+                    val loaded = Boot.load(e.classLoader)
+                    if (!loaded) throw Boot.failure ?: IllegalStateException(Boot.message)
+                    if (Boot.stage < 0) throw IllegalStateException(Boot.message)
                     modsLoaded = true
                 }
             } catch (t: Throwable) {
@@ -375,7 +376,7 @@ class GameActivity : ComponentActivity() {
                 val msg = Boot.message
                 val elapsed = SystemClock.uptimeMillis() - start
                 runBlocking { d.step("stage=$stage msg=$msg") }
-                if (stage < 2 && elapsed <= MAX_WAIT_MS && !isFinishing) {
+                if (stage in 0..1 && elapsed <= MAX_WAIT_MS && !isFinishing) {
                     val pct = progressFor(stage, msg)
                     if (pct > shown) shown = pct
                     bar.progress = shown
@@ -392,7 +393,7 @@ class GameActivity : ComponentActivity() {
                     handler.postDelayed(this, 200)
                     return
                 }
-                runBlocking { d.finish(if (stage >= 2) "ok" else if (isFinishing) "fechado" else "tempo_esgotado") }
+                runBlocking { d.finish(if (stage >= 2) "ok" else if (stage < 0) "falha" else if (isFinishing) "fechado" else "tempo_esgotado") }
                 bar.progress = 100
                 overlay.animate().alpha(0f).setDuration(350).withEndAction {
                     (overlay.parent as? ViewGroup)?.removeView(overlay)

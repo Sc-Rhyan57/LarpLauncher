@@ -665,7 +665,7 @@ class DevKitOverlayService : Service() {
         out += "Erros: ${errors.size}"
         errors.takeLast(12).forEach { out += "  ✖ $it" }
         if (log.isEmpty()) out += "Aviso: LogOutput.log ainda não existe"
-        com.regis.boot.Boot.lines().takeLast(8).forEach { out += "boot: $it" }
+        com.regis.boot.Boot.lines().takeLast(14).forEach { out += "boot: $it" }
         return out
     }
 
