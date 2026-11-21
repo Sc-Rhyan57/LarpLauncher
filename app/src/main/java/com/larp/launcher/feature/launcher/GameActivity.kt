@@ -75,6 +75,15 @@ class GameActivity : ComponentActivity() {
             fail("Não consegui abrir o jogo instalado.", GameEnv.error())
             return
         }
+        // Depois de um crash o Android pode recriar esta activity com a MESMA intent, entrando em
+        // loop de "carregando mods". Cada abertura legítima traz um id novo; id repetido = restauração.
+        val launchId = intent?.getLongExtra(EXTRA_LAUNCH_ID, 0L) ?: 0L
+        val launchPrefs = getSharedPreferences("larp_game_launch", MODE_PRIVATE)
+        if (launchId != 0L && launchPrefs.getLong("last_id", 0L) == launchId) {
+            fail("O jogo fechou inesperadamente (crash). Abra o Console do launcher para ver o log e inicie de novo.", null)
+            return
+        }
+        launchPrefs.edit().putLong("last_id", launchId).commit()
         if (intent?.getBooleanExtra(EXTRA_NO_MODS, false) == true || intent?.getBooleanExtra(EXTRA_FRIDA, false) == true) {
             runStart(e)
         } else {
@@ -116,6 +125,7 @@ class GameActivity : ComponentActivity() {
             addView(title, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT))
             addView(bar, LinearLayout.LayoutParams(dp(280), dp(8)).apply { topMargin = dp(18) })
             addView(status, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+            addView(cancelButton(), LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(24) })
         }
         setContentView(root)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -209,6 +219,19 @@ class GameActivity : ComponentActivity() {
             devKitStarted = false
         }
         super.onDestroy()
+        // O .NET/BepInEx não descarrega plugins: sem matar o processo, um mod já removido
+        // continuaria carregado na próxima abertura.
+        if (isFinishing) android.os.Process.killProcess(android.os.Process.myPid())
+    }
+
+    private fun closeGame() {
+        runCatching { finishAndRemoveTask() }
+        android.os.Process.killProcess(android.os.Process.myPid())
+    }
+
+    private fun cancelButton(): android.widget.Button = android.widget.Button(this).apply {
+        text = if (Locale.getDefault().language == "pt") "Cancelar e fechar" else "Cancel and close"
+        setOnClickListener { closeGame() }
     }
 
     private fun startUnity(env: GameEnv) {
@@ -357,6 +380,7 @@ class GameActivity : ComponentActivity() {
         overlay.addView(title, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT))
         overlay.addView(bar, LinearLayout.LayoutParams(dp(280), dp(8)).apply { topMargin = dp(18) })
         overlay.addView(status, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+        overlay.addView(cancelButton(), LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(24) })
         addContentView(overlay, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
@@ -372,6 +396,12 @@ class GameActivity : ComponentActivity() {
                 val msg = Boot.message
                 val elapsed = SystemClock.uptimeMillis() - start
                 runBlocking { d.step("stage=$stage msg=$msg") }
+                if (stage in 0..1 && !isFinishing && elapsed > OVERLAY_TIMEOUT_MS) {
+                    runBlocking { d.finish("tempo_esgotado") }
+                    (overlay.parent as? ViewGroup)?.removeView(overlay)
+                    fail("Os mods demoraram demais para carregar (mais de 15 min). Veja o Console do launcher.", null)
+                    return
+                }
                 if (stage in 0..1 && !isFinishing) {
                     val pct = progressFor(stage, msg)
                     if (pct > shown) shown = pct
@@ -386,6 +416,11 @@ class GameActivity : ComponentActivity() {
                     return
                 }
                 runBlocking { d.finish(if (stage >= 2) "ok" else if (stage < 0) "falha" else if (isFinishing) "fechado" else "tempo_esgotado") }
+                if (stage < 0 && !isFinishing) {
+                    (overlay.parent as? ViewGroup)?.removeView(overlay)
+                    fail("Falha ao iniciar os mods: $msg", null)
+                    return
+                }
                 bar.progress = 100
                 overlay.animate().alpha(0f).setDuration(350).withEndAction {
                     (overlay.parent as? ViewGroup)?.removeView(overlay)
@@ -406,9 +441,18 @@ class GameActivity : ComponentActivity() {
             setPadding(48, 48, 48, 48)
             setTextIsSelectable(true)
         }
+        val column = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.BLACK)
+            addView(android.widget.Button(this@GameActivity).apply {
+                this.text = if (Locale.getDefault().language == "pt") "Fechar" else "Close"
+                setOnClickListener { closeGame() }
+            })
+            addView(view)
+        }
         setContentView(android.widget.ScrollView(this).apply {
             setBackgroundColor(Color.BLACK)
-            addView(view)
+            addView(column)
         })
         runBlocking { diario?.finish(message) }
     }
@@ -434,6 +478,8 @@ class GameActivity : ComponentActivity() {
         private const val EXTRA_GAME_PACKAGE = "game_package"
         private const val EXTRA_NO_MODS = "sem_mods"
         private const val EXTRA_FRIDA = "frida"
+        private const val EXTRA_LAUNCH_ID = "launch_id"
+        private const val OVERLAY_TIMEOUT_MS = 15 * 60 * 1000L
         const val DEFAULT_GAME_PACKAGE = "com.innersloth.spacemafia"
 
         @Volatile var current: java.lang.ref.WeakReference<GameActivity>? = null
@@ -443,6 +489,7 @@ class GameActivity : ComponentActivity() {
             val base = Intent(activity.intent)
             if (noMods != null) base.putExtra(EXTRA_NO_MODS, noMods)
             if (noMods == true) base.putExtra(EXTRA_FRIDA, false)
+            base.putExtra(EXTRA_LAUNCH_ID, System.currentTimeMillis())
             base.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             base.component = android.content.ComponentName(activity.baseContext.packageName, GameActivity::class.java.name)
             return base
@@ -459,6 +506,7 @@ class GameActivity : ComponentActivity() {
                 putExtra(EXTRA_PRIVATE_MODS, privateMods)
                 putExtra(EXTRA_NO_MODS, noMods)
                 putExtra(EXTRA_FRIDA, frida)
+                putExtra(EXTRA_LAUNCH_ID, System.currentTimeMillis())
             }
 
         fun progressFor(stage: Int, msg: String): Int {

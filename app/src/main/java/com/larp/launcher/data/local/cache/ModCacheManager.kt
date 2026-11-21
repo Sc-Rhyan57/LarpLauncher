@@ -62,7 +62,11 @@ class ModCacheManager(private val context: Context) {
         listOf(
             File(localRoot(), "$id.dll"),
             File(localRoot(), "$id.cover.png"),
-            File(localRoot(), "$id.meta.json")
+            File(localRoot(), "$id.meta.json"),
+            // cópia que o launcher colocou em BepInEx/plugins ao iniciar o jogo
+            File(bepinexPluginsDir(), "$id.dll")
         ).forEach { it.takeIf { f -> f.exists() }?.delete() }
+        // capas com timestamp ($id.cover.<ts>.png) e qualquer outro resto
+        localRoot().listFiles { f -> f.name.startsWith("$id.") }?.forEach { it.delete() }
     }
 }

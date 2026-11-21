@@ -87,6 +87,8 @@ class GameLauncher @Inject constructor(
                 }
                 trySend(PatchProgress(PatchProgress.Stage.Installing, "Copiando DLLs locais…", 0.1f))
                 val plugins = cache.bepinexPluginsDir().apply { mkdirs() }
+                // Remove tudo que sobrou de execuções anteriores (mods excluídos/desativados).
+                plugins.listFiles()?.forEach { deleteTree(it) }
                 dllPaths.forEachIndexed { index, src ->
                     val file = File(src)
                     if (file.isFile) file.copyTo(File(plugins, file.name), overwrite = true)
@@ -153,7 +155,33 @@ class GameLauncher @Inject constructor(
         awaitClose { job.cancel() }
     }.flowOn(Dispatchers.IO)
 
+    private fun deleteTree(file: File) {
+        file.listFiles()?.forEach { deleteTree(it) }
+        file.delete()
+    }
+
+    /**
+     * O jogo roda no processo ":game". Se ele continuou vivo em segundo plano, o .NET já tem os
+     * mods antigos carregados (assemblies não descarregam) e o singleTask só reaproveita a
+     * activity antiga. Matar o processo garante que a próxima abertura leia a pasta de plugins nova.
+     */
+    private fun killStaleGameProcess() {
+        runCatching {
+            val am = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+            val self = android.os.Process.myPid()
+            var killed = false
+            am.runningAppProcesses?.forEach { p ->
+                if (p.processName.endsWith(":game") && p.pid != self) {
+                    android.os.Process.killProcess(p.pid)
+                    killed = true
+                }
+            }
+            if (killed) Thread.sleep(500)
+        }
+    }
+
     private fun startGame(env: GameEnv, privateBepInEx: Boolean, noMods: Boolean = false, frida: Boolean = false) {
+        killStaleGameProcess()
         GameEnvFactory.reset()
         val intent = GameActivity.newIntent(context, env.packageName, privateBepInEx, noMods, frida)
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

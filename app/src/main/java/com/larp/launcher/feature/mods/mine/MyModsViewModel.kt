@@ -105,14 +105,18 @@ class MyModsViewModel @Inject constructor(
     private val _launch = MutableStateFlow<PatchProgress?>(null)
     val launch: StateFlow<PatchProgress?> = _launch.asStateFlow()
 
+    private var launchJob: kotlinx.coroutines.Job? = null
+
     fun dismissLaunch() {
+        launchJob?.cancel()
+        launchJob = null
         _launch.value = null
     }
 
     fun launchWithLocalMods(onStarted: () -> Unit = {}) {
         val current = _launch.value
         if (current != null && current.stage != PatchProgress.Stage.Failed) return
-        viewModelScope.launch {
+        launchJob = viewModelScope.launch {
             val enabled = state.value.mods.filter { it.enabled && it.dllPath.isNotBlank() }
             if (enabled.isEmpty()) {
                 val msg = "Nenhum mod ativado. Ative pelo menos um mod para iniciar com mods."
@@ -121,9 +125,16 @@ class MyModsViewModel @Inject constructor(
             }
             val paths = enabled.map { it.dllPath }
             gameLauncher.launchLocalMods(paths).collect { progress ->
-                _launch.value = progress
-                if (progress.stage == PatchProgress.Stage.Ready) onStarted()
+                if (progress.stage == PatchProgress.Stage.Ready) {
+                    // jogo foi aberto: o diálogo não pode ficar para trás (travava "carregando" para sempre)
+                    _launch.value = null
+                    onStarted()
+                } else {
+                    _launch.value = progress
+                }
             }
+            // fluxo terminou sem Ready/Failed (ex.: cancelado): nunca deixar diálogo preso
+            if (_launch.value?.stage != PatchProgress.Stage.Failed) _launch.value = null
         }
     }
 

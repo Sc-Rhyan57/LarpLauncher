@@ -167,7 +167,7 @@ fun MyModsScreen(
     launchState?.let { progress ->
         val failed = progress.stage == com.larp.launcher.domain.model.PatchProgress.Stage.Failed
         androidx.compose.material3.AlertDialog(
-            onDismissRequest = { if (failed) viewModel.dismissLaunch() },
+            onDismissRequest = { viewModel.dismissLaunch() },
             title = { Text(if (failed) "Não foi possível iniciar" else "Carregando mods") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -181,8 +181,8 @@ fun MyModsScreen(
                 }
             },
             confirmButton = {
-                if (failed) {
-                    androidx.compose.material3.TextButton(onClick = { viewModel.dismissLaunch() }) { Text("OK") }
+                androidx.compose.material3.TextButton(onClick = { viewModel.dismissLaunch() }) {
+                    Text(if (failed) "OK" else "Cancelar")
                 }
             }
         )
