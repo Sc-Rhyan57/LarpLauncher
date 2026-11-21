@@ -30,6 +30,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
@@ -80,6 +82,26 @@ fun DevKitScreen(
     val context = LocalContext.current
     var showSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    // Coleta eventos de exportação (compartilhamento + toasts)
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        viewModel.events.collect { event ->
+            when (event) {
+                is DevKitEvent.ShareReady -> {
+                    val chooser = android.content.Intent.createChooser(event.intent, "Compartilhar ${event.displayName}")
+                    chooser.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    runCatching { context.startActivity(chooser) }
+                        .onFailure { scope.launch { snackbarHostState.showSnackbar("Nenhum app para compartilhar.") } }
+                    scope.launch {
+                        snackbarHostState.showSnackbar(
+                            "${event.displayName} pronto (${event.sizeBytes / 1024} KB). Compartilhe com o desenvolvedor."
+                        )
+                    }
+                }
+                is DevKitEvent.Toast -> scope.launch { snackbarHostState.showSnackbar(event.message) }
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -176,6 +198,57 @@ fun DevKitScreen(
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
+                    }
+                }
+            }
+
+            item {
+                LarpCard {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            "Ferramentas do desenvolvedor",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            "Use estes botões para enviar o catálogo IL2CPP e o Assembly-CSharp.dll ao desenvolvedor de mods. Eles são salvos no cache do app e abertos no sheet de compartilhamento.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Button(
+                            onClick = { viewModel.exportStructureAsZip() },
+                            enabled = !state.isExporting,
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Icon(Icons.Filled.FolderZip, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Baixar estrutura como ZIP", fontWeight = FontWeight.Medium)
+                        }
+                        OutlinedButton(
+                            onClick = { viewModel.exportAssemblyCSharp() },
+                            enabled = !state.isExporting,
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Icon(Icons.Filled.Download, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Baixar Assembly-CSharp.dll", fontWeight = FontWeight.Medium)
+                        }
+                        if (state.isExporting) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                androidx.compose.material3.CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    "Processando…",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
                 }
             }

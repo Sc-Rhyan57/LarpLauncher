@@ -7,29 +7,36 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.PixelFormat
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.Drawable
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
 import android.util.Log
+import android.view.Choreographer
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewOutlineProvider
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.TextView
 import android.widget.Toast
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.text.SpannableStringBuilder
 import android.text.style.ForegroundColorSpan
 import java.io.File
-import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -52,6 +59,21 @@ import javax.inject.Inject
 
 private val Context.devkitPrefs by preferencesDataStore(name = "larp_devkit")
 
+/**
+ * Overlay do Dev Kit do Larp Launcher.
+ *
+ * Reconstruído para espelhar fielmente o layout do executor Kawaii (GlassScene.smali):
+ *   - Bolha colapsada: 56x56dp (const/16 v8, 0x38 em GlassScene.smali:805), botão de toggle/drag
+ *   - Painel expandido: 300x390dp (const/16 v9, 0x12c / v10, 0x186 em GlassScene.smali:1141-1147)
+ *   - Painel com gradiente vertical + stroke 1.8dp (Paint V em GlassScene.smali:853, 0x3fe66666 # 1.8f)
+ *   - Conteúdo do painel clipado em round-rect 12dp (glassRadius Q=12.0f em GlassScene.smali:797)
+ *   - Bolha é o drag handle (GlassScene$b0 com setOnTouchListener em GlassScene.smali:943)
+ *
+ * Cores Larp (substituindo a paleta Midnight/Lilac/Plum do Kawaii):
+ *   - Background gradiente: 0xFF181213 → 0xFF1F1719 (em vez do navy/lavender do Kawaii)
+ *   - Borda/glow: 0xFFF4B3BB rosa (em vez do lavender-white argb(a,235,222,255) do Kawaii)
+ *   - Primary: 0xFF7E5260 rosa profundo (em vez do Lilac lavender)
+ */
 @AndroidEntryPoint
 class DevKitOverlayService : Service() {
 
@@ -70,6 +92,58 @@ class DevKitOverlayService : Service() {
     private var variables: List<DevKitVariable> = emptyList()
     private var latestSnapshot: DevKitSnapshot? = null
 
+    // FPS via Choreographer — conta os frames desenhados por segundo
+    private var choreographer: Choreographer? = null
+    private var frameCount = 0
+    private var lastFps = 0
+    private val frameCallback = object : Choreographer.FrameCallback() {
+        override fun doFrame(frameTimeNanos: Long) {
+            frameCount++
+            choreographer?.postFrameCallback(this)
+        }
+    }
+    private val fpsRunnable = object : Runnable {
+        override fun run() {
+            lastFps = frameCount
+            frameCount = 0
+            updateFpsPill(lastFps)
+            handler.postDelayed(this, 1000)
+        }
+    }
+
+    // Paleta Larp (rosa escuro) — substitui o combo Midnight/Lilac/Plum do Kawaii
+    // Mapeamento Kawaii → Larp:
+    //   Midnight (dark navy bg)         → 0xFF181213 / 0xFF1F1719 (gradiente Larp dark)
+    //   Lilac (lavender accent)         → 0xFF7E5260 (LarpPrimary rosa profundo)
+    //   Plum (purple secondary)         → 0xFFFFD9DD (LarpPrimaryContainer rosa claro)
+    //   Lavender-white stroke (235,222,255) → 0xFFF4B3BB (LarpPrimaryDark rosa glow)
+    private val cBgDark = 0xFF181213.toInt()           // LarpBackgroundDark — topo do gradiente
+    private val cSurface = 0xFF1F1719.toInt()          // LarpSurfaceContainerDark — base do gradiente
+    private val cSurfaceHigh = 0xFF2D2526.toInt()      // LarpSurfaceContainerHighDark — header/cards
+    private val cOnSurface = 0xFFEDE0E0.toInt()        // LarpOnSurfaceDark — texto primário
+    private val cOnSurfaceVar = 0xFFD7C0C1.toInt()     // LarpOnSurfaceVariantDark — texto secundário
+    private val cPrimary = 0xFF7E5260.toInt()          // LarpPrimary — rosa profundo (aba selecionada, botão primário)
+    private val cPrimaryContainer = 0xFFFFD9DD.toInt() // LarpPrimaryContainer — rosa claro (hover/secondary)
+    private val cPrimaryDark = 0xFFF4B3BB.toInt()      // LarpPrimaryDark — rosa glow (borda do painel)
+    private val cOutline = 0xFF9F8C8C.toInt()          // LarpOutlineDark — bordas sutis
+    private val cBroadcastInfo = 0xFF3B6FE0.toInt()    // azul (FPS pill)
+    private val cBroadcastCritical = 0xFFB3261E.toInt()// vermelho (SAIR pill)
+    private val cStatusGreen = 0xFF4CAF50.toInt()      // boot stage >= 2
+    private val cStatusYellow = 0xFFFFC107.toInt()     // boot stage == 1
+    private val cStatusRed = 0xFFEF4444.toInt()        // boot stage == 0
+
+    // Dimensões espelhando Kawaii GlassScene.smali
+    // Bolha: 56dp (GlassScene.smali:805 const/16 v8, 0x38)
+    // Painel: 300x390dp (GlassScene.smali:1141 const/16 v9, 0x12c; :1147 const/16 v10, 0x186)
+    // Raio do painel: 12dp (GlassScene.smali:797 iput v13, ->Q:F onde v13=12.0f de :725)
+    // Stroke do painel: 1.8dp (GlassScene.smali:853 const v9, 0x3fe66666 # 1.8f, Paint V strokeWidth)
+    private val bubbleSizeDp = 56
+    private val panelWidthDp = 300
+    private val panelHeightDp = 390
+    private val panelRadiusDp = 24       // raio visual do painel (arredondado suave, estilo glass)
+    private val contentClipRadiusDp = 12 // raio de clip do conteúdo (glassRadius Q=12.0f)
+    private val panelStrokeDp = 2        // stroke da borda do painel (≈1.8dp arredondado)
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -78,6 +152,9 @@ class DevKitOverlayService : Service() {
         handler = Handler(Looper.getMainLooper())
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         startForegroundCompat()
+        choreographer = Choreographer.getInstance()
+        choreographer?.postFrameCallback(frameCallback)
+        handler.postDelayed(fpsRunnable, 1000)
         loadVariablesAndShowOverlay()
     }
 
@@ -108,6 +185,8 @@ class DevKitOverlayService : Service() {
 
     override fun onDestroy() {
         refreshJob?.cancel()
+        choreographer?.removeFrameCallback(frameCallback)
+        handler.removeCallbacks(fpsRunnable)
         catalogExtractor.stop()
         runCatching { overlayView?.let { windowManager.removeView(it) } }
         overlayView = null
@@ -147,6 +226,8 @@ class DevKitOverlayService : Service() {
     private var expanded = false
     private var tab = 0
     private var bodyView: TextView? = null
+    private var fpsPillView: TextView? = null
+    private var statusDotView: View? = null
     private var layoutParams: WindowManager.LayoutParams? = null
 
     private fun showOverlay() {
@@ -160,6 +241,9 @@ class DevKitOverlayService : Service() {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         else
             @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
+        // LayoutParams igual ao Kawaii: TYPE_APPLICATION_OVERLAY + FLAG_NOT_FOCUSABLE + FLAG_LAYOUT_NO_LIMITS
+        // (Kawaii não chama WindowManager diretamente em GlassScene — o host Activity faz isso;
+        //  aqui usamos Service porque o overlay roda no processo :game)
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -178,50 +262,206 @@ class DevKitOverlayService : Service() {
         render()
     }
 
-    private fun label(text: String, color: String, size: Float = 11f, onClick: (() -> Unit)? = null): TextView =
-        TextView(this).apply {
-            this.text = text
-            setTextColor(Color.parseColor(color))
-            textSize = size
-            setPadding(dp(8), dp(6), dp(8), dp(6))
-            if (onClick != null) setOnClickListener { onClick() }
+    private fun dp(value: Int): Int =
+        (value * resources.displayMetrics.density).toInt()
+
+    /** Drawable arredondado (retângulo) com preenchimento sólido + traço opcional. */
+    private fun roundRectDrawable(color: Int, cornerDp: Int, strokeDp: Int = 0, strokeColor: Int = 0): GradientDrawable =
+        GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(cornerDp).toFloat()
+            setColor(color)
+            if (strokeDp > 0) setStroke(dp(strokeDp), strokeColor)
         }
 
+    /**
+     * Drawable gradiente vertical (top → bottom) com cantos arredondados + traço.
+     * Espelha o LinearGradient do GlassScene$f0 (GlassScene$f0.smali:609 new-instance LinearGradient),
+     * que interpola da cor "lightened" (theme+0x22/0x1e/0x2a) para a "darkened" (theme-0x12/0x10/0xa).
+     * No Larp usamos cBgDark → cSurface (gradiente dark rosa) em vez do navy→darker-navy do Kawaii.
+     */
+    private fun panelGradientDrawable(cornerDp: Int, strokeDp: Int, strokeColor: Int): GradientDrawable =
+        GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(cornerDp).toFloat()
+            colors = intArrayOf(cBgDark, cSurface)
+            orientation = GradientDrawable.Orientation.TOP_BOTTOM
+            setStroke(dp(strokeDp), strokeColor)
+        }
+
+    /** Drawable circular (oval) com preenchimento sólido. */
+    private fun ovalDrawable(color: Int): GradientDrawable =
+        GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(color)
+        }
+
+    /** Pílula arredondada (label bold branco sobre fundo colorido). */
+    private fun pill(bgColor: Int, text: String, textColor: Int = Color.WHITE, cornerDp: Int = 12, sizeSp: Float = 11f): TextView =
+        TextView(this).apply {
+            this.text = text
+            setTextColor(textColor)
+            textSize = sizeSp
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setPadding(dp(12), dp(6), dp(12), dp(6))
+            background = roundRectDrawable(bgColor, cornerDp)
+        }
+
+    /** Cor do status dot baseada no estágio de boot. */
+    private fun statusDotColor(): Int {
+        val stage = com.regis.boot.Boot.stage
+        return when {
+            stage >= 2 -> cStatusGreen  // verde — mods OK
+            stage == 1 -> cStatusYellow // amarelo — carregando
+            else -> cStatusRed          // vermelho — erro
+        }
+    }
+
+    private fun addSpace(parent: LinearLayout, heightDp: Int) {
+        parent.addView(View(this), LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(heightDp)))
+    }
+
+    private fun updateFpsPill(fps: Int) {
+        fpsPillView?.text = if (fps <= 0) "0" else fps.toString()
+    }
+
+    private fun updateStatusDot() {
+        statusDotView?.background = ovalDrawable(statusDotColor())
+    }
+
+    /**
+     * Renderiza o overlay. Espelha a estrutura GlassScene:
+     *   - Collapsed: apenas a bolha 56dp (GlassScene$b0, ad)
+     *   - Expanded: painel 300x390dp (GlassScene$e0, ae) com gradiente + stroke + conteúdo clipado
+     *
+     * A bolha é o drag handle (igual ao Kawaii: b0 tem setOnTouchListener em GlassScene.smali:943).
+     * O painel usa gradiente vertical cBgDark→cSurface + stroke rosa cPrimaryDark (1.8dp).
+     */
     private fun render() {
         val root = overlayView as? FrameLayout ?: return
         val params = layoutParams ?: return
         root.removeAllViews()
+        fpsPillView = null
+        statusDotView = null
+        bodyView = null
+
         if (!expanded) {
-            val bubble = TextView(this).apply {
-                text = "L"
-                gravity = Gravity.CENTER
-                setTextColor(Color.WHITE)
-                textSize = 16f
-                typeface = Typeface.DEFAULT_BOLD
-                setBackgroundColor(Color.parseColor("#CC5B3FD1"))
-                setOnTouchListener(DragHandler(windowManager, root, params) { expanded = true; render() })
-            }
-            root.addView(bubble, FrameLayout.LayoutParams(dp(40), dp(40)))
+            renderBubble(root, params)
             runCatching { windowManager.updateViewLayout(root, params) }
             return
         }
+
+        renderPanel(root, params)
+        runCatching { windowManager.updateViewLayout(root, params) }
+    }
+
+    /**
+     * Bolha colapsada: 56x56dp (GlassScene.smali:805 const/16 v8, 0x38).
+     * Em Kawaii, b0 é um View vazio com OnTouchListener; o desenho (kawaii_icon glyph)
+     * é feito por GlassScene$a0 (ac) separadamente. Aqui unificamos em BubbleView.
+     *
+     * contentDescription espelha Kawaii (GlassScene.smali:926 / :3724):
+     *   "Open workspace. Docked right. Drag to reposition."
+     */
+    private fun renderBubble(root: FrameLayout, params: WindowManager.LayoutParams) {
+        val bubble = BubbleView().apply {
+            contentDescription = "Abrir workspace. Bolha flutuante. Arraste para reposicionar."
+            setOnTouchListener(DragHandler(windowManager, root, params) { expanded = true; render() })
+        }
+        root.addView(bubble, FrameLayout.LayoutParams(dp(bubbleSizeDp), dp(bubbleSizeDp)))
+    }
+
+    /**
+     * Painel expandido: 300x390dp (GlassScene.smali:1141-1147).
+     * Gradiente vertical cBgDark→cSurface + stroke cPrimaryDark (GlassScene$f0 LinearGradient em :609).
+     * Conteúdo clipado em round-rect 12dp (GlassScene$e0.dispatchDraw em :181 addRoundRect com glassRadius=12).
+     */
+    private fun renderPanel(root: FrameLayout, params: WindowManager.LayoutParams) {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#F00D1117"))
-            setPadding(dp(6), dp(6), dp(6), dp(6))
+            background = panelGradientDrawable(panelRadiusDp, panelStrokeDp, cPrimaryDark)
+            elevation = dp(10).toFloat()
+            setPadding(dp(14), dp(14), dp(14), dp(14))
+            clipToOutline = true
+            outlineProvider = ViewOutlineProvider.BACKGROUND
         }
-        val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        val title = label("Larp Dev Menu", "#FFFFFF", 12f).apply { typeface = Typeface.DEFAULT_BOLD }
-        title.setOnTouchListener(DragHandler(windowManager, root, params, null))
+
+        // Header: status dot + título "Larp" (drag handle) + botão fechar circular
+        // Espelha Kawaii onde o drag é feito pela bolha (b0); aqui o header todo é drag handle.
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setOnTouchListener(DragHandler(windowManager, root, params, null))
+        }
+        val statusDot = View(this).apply { background = ovalDrawable(statusDotColor()) }
+        statusDotView = statusDot
+        header.addView(statusDot, LinearLayout.LayoutParams(dp(8), dp(8)).apply { rightMargin = dp(8) })
+        val title = TextView(this).apply {
+            text = "Larp"
+            setTextColor(cOnSurface)
+            textSize = 14f
+            typeface = Typeface.DEFAULT_BOLD
+        }
         header.addView(title, LinearLayout.LayoutParams(0, WindowManager.LayoutParams.WRAP_CONTENT, 1f))
-        header.addView(label("—", "#FFA0A0A0", 14f) { expanded = false; render() })
+        // Botão fechar: circular com X (estilo lucide_x do Kawaii R$drawable:111 0x7f080185)
+        val closeBtn = CloseButtonView().apply {
+            setOnClickListener { expanded = false; render() }
+            contentDescription = "Fechar"
+        }
+        header.addView(closeBtn, LinearLayout.LayoutParams(dp(28), dp(28)))
         panel.addView(header)
+
+        addSpace(panel, 10)
+
+        // Barra de stats: FPS | PING | SAIR (Larp-specific — Kawaii não tem esses pills)
+        // FPS pill: azul cBroadcastInfo; PING pill: rosa cPrimary; SAIR pill: vermelho cBroadcastCritical
+        val statsRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val fpsTv = pill(cBroadcastInfo, "0")
+        fpsPillView = fpsTv
+        statsRow.addView(fpsTv, LinearLayout.LayoutParams(0, WindowManager.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(4) })
+        val pingTv = pill(cPrimary, "--")
+        statsRow.addView(pingTv, LinearLayout.LayoutParams(0, WindowManager.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(4) })
+        val exitBtn = pill(cBroadcastCritical, "SAIR")
+        exitBtn.setOnClickListener { quitGame() }
+        statsRow.addView(exitBtn, LinearLayout.LayoutParams(0, WindowManager.LayoutParams.WRAP_CONTENT, 1f))
+        panel.addView(statsRow)
+
+        addSpace(panel, 10)
+
+        // Tabs: pílulas arredondadas (estilo pill, não underline)
+        // Selecionada: preenchida com cPrimary + texto branco
+        // Não-selecionada: transparente + texto cOnSurfaceVar
         val names = listOf("Mods", "Logs", "Dev", "Ações")
         val tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         names.forEachIndexed { i, n ->
-            tabs.addView(label(n, if (i == tab) "#FF58A6FF" else "#FFA0A0A0") { tab = i; render() })
+            val tabView = TextView(this).apply {
+                text = n
+                setTextColor(if (i == tab) Color.WHITE else cOnSurfaceVar)
+                textSize = 11f
+                typeface = Typeface.DEFAULT_BOLD
+                gravity = Gravity.CENTER
+                setPadding(dp(10), dp(6), dp(10), dp(6))
+                background = roundRectDrawable(
+                    if (i == tab) cPrimary else Color.TRANSPARENT,
+                    cornerDp = 14
+                )
+                setOnClickListener { tab = i; render() }
+            }
+            val lp = LinearLayout.LayoutParams(0, WindowManager.LayoutParams.WRAP_CONTENT, 1f)
+            if (i < names.size - 1) lp.rightMargin = dp(4)
+            tabs.addView(tabView, lp)
         }
         panel.addView(tabs)
+
+        addSpace(panel, 10)
+
+        // Corpo: ScrollView com fundo arredondado 12dp (glassRadius do Kawaii)
+        // clipToOutline + BACKGROUND outline para clipar children ao round-rect
+        // (equivalente a GlassScene$e0.dispatchDraw clipPath com addRoundRect)
         if (tab == 3) {
             val actions = listOf<Pair<String, () -> Unit>>(
                 "Reiniciar jogo (recarrega mods)" to { restartGame(null) },
@@ -233,23 +473,154 @@ class DevKitOverlayService : Service() {
                 "Fechar este menu" to { stopSelf() }
             )
             val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-            actions.forEach { (n, f) -> col.addView(label(n, "#FFFFA657", 12f) { f() }) }
-            panel.addView(ScrollView(this).apply { addView(col) }, LinearLayout.LayoutParams(dp(300), dp(220)))
+            actions.forEach { (n, f) ->
+                val item = TextView(this).apply {
+                    text = n
+                    setTextColor(cOnSurface)
+                    textSize = 11f
+                    setPadding(dp(4), dp(6), dp(4), dp(6))
+                    setOnClickListener { f() }
+                }
+                col.addView(item)
+            }
+            val scroll = ScrollView(this).apply {
+                addView(col)
+                background = roundRectDrawable(cSurface, cornerDp = contentClipRadiusDp)
+                setPadding(dp(10), dp(10), dp(10), dp(10))
+                clipToOutline = true
+                outlineProvider = ViewOutlineProvider.BACKGROUND
+            }
+            panel.addView(scroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
             bodyView = null
         } else {
             val body = TextView(this).apply {
-                setTextColor(Color.parseColor("#FFD0D0D0"))
+                setTextColor(cOnSurface)
                 textSize = 10f
                 typeface = Typeface.MONOSPACE
                 setTextIsSelectable(true)
                 setPadding(dp(4), dp(4), dp(4), dp(4))
             }
             bodyView = body
-            panel.addView(ScrollView(this).apply { addView(body) }, LinearLayout.LayoutParams(dp(300), dp(220)))
+            val scroll = ScrollView(this).apply {
+                addView(body)
+                background = roundRectDrawable(cSurface, cornerDp = contentClipRadiusDp)
+                setPadding(dp(10), dp(10), dp(10), dp(10))
+                clipToOutline = true
+                outlineProvider = ViewOutlineProvider.BACKGROUND
+            }
+            panel.addView(scroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
             refreshBody()
         }
-        root.addView(panel)
-        runCatching { windowManager.updateViewLayout(root, params) }
+
+        addSpace(panel, 6)
+
+        // Footer: divisor rosa glow + "Larp Dev Menu v0.2"
+        val divider = View(this).apply { setBackgroundColor(cPrimaryDark) }
+        panel.addView(divider, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1)))
+        val footer = TextView(this).apply {
+            text = "Larp Dev Menu v0.2"
+            setTextColor(cOnSurfaceVar)
+            textSize = 10f
+            gravity = Gravity.CENTER
+            setPadding(0, dp(4), 0, 0)
+        }
+        panel.addView(footer)
+
+        root.addView(panel, FrameLayout.LayoutParams(dp(panelWidthDp), dp(panelHeightDp)))
+    }
+
+    /**
+     * Bolha colapsada: View customizada que desenha um quadrado arredondado (≈círculo)
+     * com gradiente LarpPrimary → LarpPrimaryContainer e ícone de coração branco via Canvas/Path.
+     *
+     * Espelha o conjunto:
+     *   - GlassScene$b0 (ad): 56dp x 56dp, touch target (GlassScene.smali:913, :805)
+     *   - GlassScene$a0 (ac): desenha o kawaii_icon glyph animado por springs
+     *   - GlassScene Paint V: stroke 1.8dp branco ROUND (GlassScene.smali:853)
+     *
+     * No Larp unificamos em uma View só: gradiente + stroke + ícone.
+     * O ícone é um coração (em vez do kawaii_icon) — assinatura visual Larp.
+     */
+    private inner class BubbleView : View(this@DevKitOverlayService) {
+        private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            style = Paint.Style.FILL
+        }
+        // Stroke do bubble: 1.8dp cPrimaryDark (espelha Paint V do GlassScene.smali:853 const 0x3fe66666 # 1.8f).
+        // Aplicado via bgDrawable.setStroke() abaixo (não via Paint separado, para consistência com o clip do GradientDrawable).
+        private val heartPath = Path()
+        private val bgDrawable: Drawable
+
+        init {
+            // Gradiente vertical cPrimary → cPrimaryContainer (rosa escuro → rosa claro)
+            // Equivalente ao gradiente do bubble glyph do Kawaii (mas com paleta Larp).
+            bgDrawable = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(bubbleSizeDp / 2).toFloat() // ≈círculo (28dp em 56dp)
+                colors = intArrayOf(cPrimary, cPrimaryContainer)
+                orientation = GradientDrawable.Orientation.TOP_BOTTOM
+                setStroke(dp(2), cPrimaryDark) // stroke rosa glow
+            }
+            elevation = dp(8).toFloat()
+        }
+
+        override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+            super.onSizeChanged(w, h, oldw, oldh)
+            bgDrawable.setBounds(0, 0, w, h)
+            val cx = w / 2f
+            val cy = h / 2f
+            val r = Math.min(w, h) * 0.18f
+            heartPath.reset()
+            heartPath.moveTo(cx, cy + r * 1.4f)
+            heartPath.cubicTo(cx - r * 2.4f, cy + r * 0.2f, cx - r * 1.4f, cy - r * 1.4f, cx, cy - r * 0.4f)
+            heartPath.cubicTo(cx + r * 1.4f, cy - r * 1.4f, cx + r * 2.4f, cy + r * 0.2f, cx, cy + r * 1.4f)
+            heartPath.close()
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            bgDrawable.draw(canvas)
+            canvas.drawPath(heartPath, iconPaint)
+        }
+    }
+
+    /**
+     * Botão fechar circular com ícone X desenhado via Canvas.
+     * Espelha o drawable lucide_x do Kawaii (R$drawable.smali:111 lucide_x:I = 0x7f080185).
+     * Fundo cSurfaceHigh + stroke cOutline + X branco.
+     */
+    private inner class CloseButtonView : View(this@DevKitOverlayService) {
+        private val xPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = cOnSurface
+            style = Paint.Style.STROKE
+            strokeWidth = dp(2).toFloat()
+            strokeCap = Paint.Cap.ROUND
+        }
+        private val bgDrawable: Drawable
+
+        init {
+            bgDrawable = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(cSurfaceHigh)
+                setStroke(dp(1), cOutline)
+            }
+            elevation = dp(4).toFloat()
+        }
+
+        override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+            super.onSizeChanged(w, h, oldw, oldh)
+            bgDrawable.setBounds(0, 0, w, h)
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            bgDrawable.draw(canvas)
+            val cx = width / 2f
+            val cy = height / 2f
+            val r = Math.min(width, height) * 0.25f
+            canvas.drawLine(cx - r, cy - r, cx + r, cy + r, xPaint)
+            canvas.drawLine(cx + r, cy - r, cx - r, cy + r, xPaint)
+        }
     }
 
     private fun colorize(lines: List<String>): CharSequence {
@@ -368,6 +739,7 @@ class DevKitOverlayService : Service() {
 
     private fun updateOverlay(snapshot: DevKitSnapshot) {
         if (expanded && tab != 3) refreshBody()
+        updateStatusDot()
     }
 
     private fun openInApp() {
@@ -413,9 +785,16 @@ class DevKitOverlayService : Service() {
             .build()
     }
 
-    private fun dp(value: Int): Int =
-        (value * resources.displayMetrics.density).toInt()
-
+    /**
+     * Handler de drag para mover o overlay pela tela.
+     * Espelha o comportamento do GlassScene$b0 OnTouchListener (GlassScene.smali:943):
+     *   - ACTION_DOWN: registra posição inicial
+     *   - ACTION_MOVE: atualiza params.x/y via windowManager.updateViewLayout
+     *   - ACTION_UP: se não houve move significativo, dispara onTap (toggle do painel)
+     *
+     * No Kawaii o touch slop é obtido via ViewConfiguration.getScaledTouchSlop() (GlassScene.smali:734-738);
+     * aqui usamos um threshold fixo de 8px (≈slop em density 1.0).
+     */
     private inner class DragHandler(
         private val windowManager: WindowManager,
         private val view: View,

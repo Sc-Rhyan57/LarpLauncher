@@ -92,4 +92,13 @@ object AppModule {
     @Provides
     @Singleton
     fun provideDevKitBridge(): DevKitBridge = DevKitBridge()
+
+    @Provides
+    @Singleton
+    fun provideDevKitExporter(
+        @ApplicationContext context: Context,
+        devKitStore: DevKitStore,
+        envProvider: LarpEnvProvider
+    ): com.larp.launcher.feature.devkit.DevKitExporter =
+        com.larp.launcher.feature.devkit.DevKitExporter(context, devKitStore, envProvider)
 }

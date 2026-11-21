@@ -6,5 +6,7 @@
     <files-path name="dotnet" path="dotnet/" />
     <files-path name="game_data" path="game_data/" />
     <files-path name="diag" path="diag/" />
+    <files-path name="devkit" path="devkit/" />
     <cache-path name="downloads" path="downloads/" />
+    <cache-path name="cache_root" path="." />
 </paths>

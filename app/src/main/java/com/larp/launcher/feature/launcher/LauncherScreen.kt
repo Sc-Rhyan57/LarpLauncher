@@ -22,16 +22,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Campaign
-import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Forum
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material.icons.filled.Terminal
-import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -78,12 +74,8 @@ fun LauncherScreen(
         QuickAccess(LarpDestination.Mods, "Mods", Icons.Filled.Extension),
         QuickAccess(LarpDestination.Rooms, "Salas", Icons.Filled.Forum),
         QuickAccess(LarpDestination.Mural, "Mural", Icons.Filled.Campaign),
-        QuickAccess(LarpDestination.Malum, "Malum", Icons.Filled.MenuBook),
         QuickAccess(LarpDestination.MyMods, "Meus Mods", Icons.Filled.Storage),
-        QuickAccess(LarpDestination.Runtime, "Runtime", Icons.Filled.Memory),
-        QuickAccess(LarpDestination.Frida, "Frida Mods", Icons.Filled.Code),
         QuickAccess(LarpDestination.DevKit, "Dev Kit", Icons.Filled.BugReport),
-        QuickAccess(LarpDestination.Console, "Console", Icons.Filled.Terminal),
         QuickAccess(LarpDestination.Settings, "Ajustes", Icons.Filled.Settings)
     )
 

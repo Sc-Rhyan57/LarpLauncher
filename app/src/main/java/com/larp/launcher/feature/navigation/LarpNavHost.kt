@@ -66,6 +66,7 @@ fun LarpNavHost(
                         com.larp.launcher.feature.launcher.LarpDestination.Mural -> navController.navigate(Routes.ANNOUNCEMENTS)
                         com.larp.launcher.feature.launcher.LarpDestination.Broadcast -> navController.navigate(Routes.BROADCAST)
                         com.larp.launcher.feature.launcher.LarpDestination.Voice -> navController.navigate(Routes.voice("lobby"))
+                        // Malum, Frida, Console, Runtime ficam acessíveis via Settings → Modo Desenvolvedor
                         com.larp.launcher.feature.launcher.LarpDestination.Malum -> navController.navigate(Routes.MALUM)
                         com.larp.launcher.feature.launcher.LarpDestination.Frida -> navController.navigate(Routes.FRIDA)
                         com.larp.launcher.feature.launcher.LarpDestination.Console -> navController.navigate(Routes.CONSOLE)
@@ -124,7 +125,11 @@ fun LarpNavHost(
         composable(Routes.SETTINGS) {
             SettingsScreen(
                 onBack = { navController.popBackStack() },
-                onOpenLicenses = {}
+                onOpenLicenses = {},
+                onDevConsole = { navController.navigate(Routes.CONSOLE) },
+                onDevFrida = { navController.navigate(Routes.FRIDA) },
+                onDevRuntime = { navController.navigate(Routes.RUNTIME) },
+                onDevMalum = { navController.navigate(Routes.MALUM) }
             )
         }
 

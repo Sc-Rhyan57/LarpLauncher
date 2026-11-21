@@ -1,9 +1,13 @@
 package com.larp.launcher.feature.devkit
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.larp.launcher.OverlayPermissionHolder
+import com.larp.launcher.core.LarpEnvProvider
+import com.larp.launcher.data.repository.GameEnvRepository
 import com.larp.launcher.domain.model.DevKitEntry
 import com.larp.launcher.domain.model.DevKitSnapshot
 import com.larp.launcher.domain.model.DevKitVariable
@@ -11,8 +15,11 @@ import com.larp.launcher.hook.LarpHookEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -29,21 +36,33 @@ data class DevKitUiState(
     val catalogQuery: String = "",
     val catalogResults: List<DevKitEntry> = emptyList(),
     val isLoading: Boolean = true,
+    val isExporting: Boolean = false,
     val error: String? = null
 )
+
+sealed class DevKitEvent {
+    data class ShareReady(val intent: Intent, val displayName: String, val sizeBytes: Long) : DevKitEvent()
+    data class Toast(val message: String) : DevKitEvent()
+}
 
 @HiltViewModel
 class DevKitViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val devKitStore: DevKitStore,
     private val devKitBridge: DevKitBridge,
-    private val hookEngine: LarpHookEngine
+    private val hookEngine: LarpHookEngine,
+    private val exporter: DevKitExporter,
+    private val gameEnvRepo: GameEnvRepository,
+    private val envProvider: LarpEnvProvider
 ) : ViewModel() {
 
     private var searchJob: Job? = null
 
     private val _state = MutableStateFlow(DevKitUiState())
     val state: StateFlow<DevKitUiState> = _state.asStateFlow()
+
+    private val _events = MutableSharedFlow<DevKitEvent>()
+    val events: SharedFlow<DevKitEvent> = _events.asSharedFlow()
 
     init {
         refresh()
@@ -175,6 +194,37 @@ class DevKitViewModel @Inject constructor(
 
     fun clearError() {
         _state.update { it.copy(error = null) }
+    }
+
+    fun exportStructureAsZip() {
+        viewModelScope.launch {
+            _state.update { it.copy(isExporting = true) }
+            when (val r = exporter.exportStructureAsZip()) {
+                is DevKitExporter.Result.Shared -> {
+                    val intent = exporter.buildShareIntent(r.uri, r.displayName)
+                    _events.emit(DevKitEvent.ShareReady(intent, r.displayName, r.sizeBytes))
+                }
+                is DevKitExporter.Result.Failed ->
+                    _events.emit(DevKitEvent.Toast(r.reason))
+            }
+            _state.update { it.copy(isExporting = false) }
+        }
+    }
+
+    fun exportAssemblyCSharp() {
+        viewModelScope.launch {
+            _state.update { it.copy(isExporting = true) }
+            val gameEnv = gameEnvRepo.detect(envProvider.current().gamePackage)
+            when (val r = exporter.exportAssemblyCSharp(gameEnv)) {
+                is DevKitExporter.Result.Shared -> {
+                    val intent = exporter.buildShareIntent(r.uri, r.displayName)
+                    _events.emit(DevKitEvent.ShareReady(intent, r.displayName, r.sizeBytes))
+                }
+                is DevKitExporter.Result.Failed ->
+                    _events.emit(DevKitEvent.Toast(r.reason))
+            }
+            _state.update { it.copy(isExporting = false) }
+        }
     }
 
     companion object {

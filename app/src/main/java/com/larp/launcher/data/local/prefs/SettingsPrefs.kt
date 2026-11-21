@@ -21,6 +21,9 @@ class SettingsPrefs(private val context: Context) {
     val apiUrl: Flow<String> = context.larpSettingsDataStore.data
         .map { it[KEY_API_URL] ?: DEFAULT_API_URL }
 
+    val devMode: Flow<Boolean> = context.larpSettingsDataStore.data
+        .map { it[KEY_DEV_MODE] ?: false }
+
     suspend fun setDynamicColor(enabled: Boolean) {
         context.larpSettingsDataStore.edit { it[KEY_DYNAMIC_COLOR] = enabled }
     }
@@ -33,10 +36,15 @@ class SettingsPrefs(private val context: Context) {
         context.larpSettingsDataStore.edit { it[KEY_API_URL] = url.trim().trimEnd('/') }
     }
 
+    suspend fun setDevMode(enabled: Boolean) {
+        context.larpSettingsDataStore.edit { it[KEY_DEV_MODE] = enabled }
+    }
+
     companion object {
         private val KEY_DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         private val KEY_DARK_MODE = stringPreferencesKey("dark_mode")
         private val KEY_API_URL = stringPreferencesKey("api_url")
+        private val KEY_DEV_MODE = booleanPreferencesKey("dev_mode")
         const val DEFAULT_API_URL = "https://larp-api.workers.dev"
     }
 }

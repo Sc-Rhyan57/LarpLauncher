@@ -19,6 +19,7 @@ import javax.inject.Inject
 data class SettingsUiState(
     val dynamicColor: Boolean = true,
     val darkMode: String = "system",
+    val devMode: Boolean = false,
     val env: LarpEnv = LarpEnv()
 )
 
@@ -35,9 +36,10 @@ class SettingsViewModel @Inject constructor(
     val state: StateFlow<SettingsUiState> = combine(
         settingsPrefs.dynamicColor,
         settingsPrefs.darkMode,
+        settingsPrefs.devMode,
         envState
-    ) { dynamicColor, darkMode, env ->
-        SettingsUiState(dynamicColor, darkMode, env)
+    ) { dynamicColor, darkMode, devMode, env ->
+        SettingsUiState(dynamicColor, darkMode, devMode, env)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000L),
@@ -50,6 +52,10 @@ class SettingsViewModel @Inject constructor(
 
     fun setDarkMode(mode: String) {
         viewModelScope.launch { settingsPrefs.setDarkMode(mode) }
+    }
+
+    fun setDevMode(enabled: Boolean) {
+        viewModelScope.launch { settingsPrefs.setDevMode(enabled) }
     }
 
     fun saveEnv(env: LarpEnv) {

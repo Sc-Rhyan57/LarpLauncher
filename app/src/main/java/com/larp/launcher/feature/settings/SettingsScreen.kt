@@ -11,15 +11,20 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Webhook
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -60,6 +65,10 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     onBack: () -> Unit,
     onOpenLicenses: () -> Unit,
+    onDevConsole: () -> Unit = {},
+    onDevFrida: () -> Unit = {},
+    onDevRuntime: () -> Unit = {},
+    onDevMalum: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -299,27 +308,66 @@ fun SettingsScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("Larp Launcher", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            "Versão 0.1.0 • GPLv3",
+                            "Versão 0.1.0",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            "Reconstrução open-source do ReVanced/Regis com Material You.",
-                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
 
+            item { SectionHeader("Modo Desenvolvedor", Icons.Filled.BugReport) }
             item {
-                OutlinedButton(onClick = onOpenLicenses, modifier = Modifier.fillMaxWidth()) {
-                    Icon(imageVector = Icons.Filled.Code, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Ver licenças open source")
+                LarpCard {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Ativar modo desenvolvedor",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                                Text(
+                                    "Mostra Console, Frida Mods, Runtime e Malum.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = state.devMode,
+                                onCheckedChange = { viewModel.setDevMode(it) }
+                            )
+                        }
+                        if (state.devMode) {
+                            androidx.compose.material3.HorizontalDivider()
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                DevToolRow(icon = Icons.Filled.Terminal, label = "Console") { onDevConsole() }
+                                DevToolRow(icon = Icons.Filled.Code, label = "Frida Mods") { onDevFrida() }
+                                DevToolRow(icon = Icons.Filled.Memory, label = "Runtime (.NET / BepInEx)") { onDevRuntime() }
+                                DevToolRow(icon = Icons.Filled.MenuBook, label = "Malum") { onDevMalum() }
+                            }
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun DevToolRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
+    ) {
+        Icon(imageVector = icon, contentDescription = null)
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(label, modifier = Modifier.weight(1f))
+        Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null)
     }
 }
 
