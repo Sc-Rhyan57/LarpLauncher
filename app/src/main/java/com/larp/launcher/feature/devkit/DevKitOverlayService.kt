@@ -669,7 +669,7 @@ class DevKitOverlayService : Service() {
         runCatching {
             val dir = modCache.bepinexDir()
             File(dir, "preloader.log").takeIf { it.isFile }?.readLines()?.takeLast(12)?.forEach { out += "pre: $it" }
-            com.regis.boot.Boot.previousLog(dir).takeLast(14).forEach { out += "ant: $it" }
+            com.regis.boot.Boot.previousLog(dir).takeLast(30).forEach { out += "ant: $it" }
         }
         if (android.os.Build.VERSION.SDK_INT >= 30) runCatching {
             val am = getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
