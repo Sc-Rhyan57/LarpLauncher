@@ -669,7 +669,22 @@ FUSION_EXPORT void* hook(void* target, void* replacement, bool specialReturnBuff
     return original;
 }
 
-FUSION_EXPORT void unhook() {}
+FUSION_EXPORT void unhook(void*) {}
+
+FUSION_EXPORT uint8_t unhook_checked(void* target) {
+    void* handle = openLibrary("libdobby.so");
+    if (!handle) return 0;
+    auto destroy = reinterpret_cast<int (*)(void*)>(dlsym(handle, "DobbyDestroy"));
+    if (!destroy) return 0;
+    return destroy(target) == 0 ? 1 : 0;
+}
+
+FUSION_EXPORT uint8_t get_low_memory_mode() { return 0; }
+
+FUSION_EXPORT void* get_il2cpp_api(const char* name) {
+    if (!name || !g_il2cpp) return nullptr;
+    return dlsym(g_il2cpp, name);
+}
 
 FUSION_EXPORT int JNI_OnLoad(void*, void*) {
     constexpr int kJniVersion = 0x00010006;
