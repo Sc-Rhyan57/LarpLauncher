@@ -10,7 +10,7 @@ object NativeLibsInstaller {
     private const val TAG = "LarpLauncher"
     private const val DIR_NAME = "native"
     private const val VERSION_FILE = "version.txt"
-    private const val CURRENT_VERSION = 2
+    private const val CURRENT_VERSION = 3
 
     fun ensureInstalled(context: Context): File {
         val target = File(context.filesDir, DIR_NAME)
@@ -76,7 +76,7 @@ object NativeLibsInstaller {
 
     fun listBundledNativeLibs(dir: File): List<File> {
         if (!dir.isDirectory) return emptyList()
-        return dir.listFiles { f -> f.isFile && f.name.endsWith(".so") }?.toList() ?: emptyList()
+        return dir.listFiles { f -> f.isFile && f.name.endsWith(".so") && f.name != "liblarpui.so" }?.toList() ?: emptyList()
     }
 
     // nome+tamanho não bastam: um libfusion.so recompilado com o mesmo tamanho ficava preso na
