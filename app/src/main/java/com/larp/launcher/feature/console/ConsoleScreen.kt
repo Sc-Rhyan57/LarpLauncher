@@ -1,6 +1,8 @@
 package com.larp.launcher.feature.console
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -141,6 +143,7 @@ private fun ConsoleRow(entry: ConsoleEntry) {
         ConsoleEntry.Level.Warn -> Color(0x33FFB300)
         else -> Color.Transparent
     }
+    var expanded by remember(entry) { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -180,15 +183,30 @@ private fun ConsoleRow(entry: ConsoleEntry) {
                 modifier = Modifier.fillMaxWidth()
             )
         }
-        if (entry.throwable != null) {
-            Spacer(modifier = Modifier.fillMaxWidth())
+        val details = entry.throwable
+        if (details != null) {
+            val count = details.count { it == '\n' } + 1
             Text(
-                text = entry.throwable,
-                color = Color(0xFFFF8888),
+                text = if (expanded) "▼ toque para recolher" else "▶ $count linhas — toque para expandir",
+                color = Color(0xFF8AB4F8),
                 fontFamily = FontFamily.Monospace,
-                fontSize = 10.sp,
-                modifier = Modifier.fillMaxWidth().padding(start = 112.dp)
+                fontSize = 11.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded }
+                    .padding(start = 112.dp, top = 4.dp, bottom = 4.dp)
             )
+            if (expanded) {
+                SelectionContainer {
+                    Text(
+                        text = details,
+                        color = Color(0xFFFF8888),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        modifier = Modifier.fillMaxWidth().padding(start = 8.dp)
+                    )
+                }
+            }
         }
     }
 }

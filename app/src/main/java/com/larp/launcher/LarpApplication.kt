@@ -15,7 +15,7 @@ class LarpApplication : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
         com.larp.launcher.diagnostics.CrashReporter.installJavaHandler(this)
-        // o jogo roda no processo ":game"; quem mostra o crash e o processo principal
+
         val proc = if (android.os.Build.VERSION.SDK_INT >= 28) Application.getProcessName() else packageName
         if (!proc.endsWith(":game")) {
             com.larp.launcher.diagnostics.CrashReporter.watch(this, console)

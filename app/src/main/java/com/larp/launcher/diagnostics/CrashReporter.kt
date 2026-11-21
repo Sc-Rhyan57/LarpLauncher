@@ -4,11 +4,14 @@ import android.content.Context
 import android.os.FileObserver
 import android.util.Log
 import com.larp.launcher.core.console.Console
+import com.larp.launcher.core.console.ConsoleEntry
 import java.io.File
+import java.io.RandomAccessFile
 
-/** Mostra no Console do launcher os crashes do processo :game (nativos e Java). */
 object CrashReporter {
     private const val TAG = "Crash"
+    private const val TAIL_BYTES = 80_000L
+    private const val STALE_MS = 300_000L
     private var observers = ArrayList<FileObserver>()
 
     private fun dirs(context: Context): List<File> = listOfNotNull(
@@ -16,7 +19,6 @@ object CrashReporter {
         context.getExternalFilesDir(null)?.let { File(it, "BepInEx") }
     )
 
-    /** Chamar em todo processo: captura excecoes Java nao tratadas. */
     fun installJavaHandler(context: Context) {
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         val dir = File(context.filesDir, "BepInEx").apply { mkdirs() }
@@ -24,14 +26,13 @@ object CrashReporter {
             runCatching {
                 File(dir, "crash.log").writeText(
                     "==== CRASH JAVA (Fatal) ====\nthread: ${thread.name}\n" +
-                        t.stackTraceToString().take(6000) + "\n==== FIM DO CRASH ====\n"
+                        t.stackTraceToString().take(20000) + "\n==== FIM DO CRASH ====\n"
                 )
             }
             previous?.uncaughtException(thread, t)
         }
     }
 
-    /** Chamar so no processo principal: le crash.log existente e observa novos. */
     fun watch(context: Context, console: Console) {
         dirs(context).forEach { dir ->
             consume(dir, console)
@@ -46,19 +47,58 @@ object CrashReporter {
         }
     }
 
+    private fun tail(file: File, bytes: Long = TAIL_BYTES): String = runCatching {
+        RandomAccessFile(file, "r").use { raf ->
+            val start = maxOf(0L, raf.length() - bytes)
+            raf.seek(start)
+            val buffer = ByteArray((raf.length() - start).toInt())
+            raf.readFully(buffer)
+            val text = String(buffer, Charsets.UTF_8)
+            if (start > 0) text.substringAfter('\n', text) else text
+        }
+    }.getOrDefault("")
+
+    private fun recent(file: File, crashTime: Long): Boolean =
+        file.isFile && file.length() > 0 && file.lastModified() >= crashTime - STALE_MS
+
     @Synchronized
     private fun consume(dir: File, console: Console) {
         val file = File(dir, "crash.log")
         if (!file.isFile || file.length() == 0L) return
-        val lines = runCatching { file.readLines() }.getOrNull().orEmpty().filter { it.isNotBlank() }
+        val crashTime = file.lastModified()
+        val report = runCatching { file.readText() }.getOrDefault("").trim()
         runCatching { File(dir, "crash.prev.log").apply { delete() }.let { file.renameTo(it) } }
-        console.e(TAG, "O jogo crashou! Relatorio abaixo:")
-        lines.forEach { console.e(TAG, it) }
-        val extra = listOf(File(dir, "LogOutput.log"), File(dir, "logs/LogOutput.log"), File(dir, "preloader.log"))
-            .firstOrNull { it.isFile }
-        if (extra != null) {
-            console.w(TAG, "Ultimas linhas de ${extra.name}:")
-            runCatching { extra.readLines().takeLast(15) }.getOrNull().orEmpty().forEach { console.w(TAG, it) }
+        val lines = report.lines().filter { it.isNotBlank() }
+        val native = lines.firstOrNull()?.contains("NATIVO") == true
+        val title = if (native) {
+            val signal = lines.firstOrNull { it.startsWith("sinal:") }?.removePrefix("sinal: ")?.substringBefore(" addr=").orEmpty()
+            val stage = lines.firstOrNull { it.startsWith("etapa:") }?.removePrefix("etapa: ")?.substringBefore(" (stage=").orEmpty()
+            "$signal em $stage"
+        } else {
+            lines.getOrNull(2).orEmpty()
+        }
+        console.log(ConsoleEntry.Level.Error, TAG, "O jogo crashou: $title", report)
+
+        val fusion = File(dir, "fusion.log")
+        val fusionText = if (fusion.isFile) tail(fusion) else ""
+        val fusionLines = fusionText.lines()
+        val idx = fusionLines.indexOfLast { it.contains("Unhandled exception") }
+        if (idx >= 0) {
+            val block = fusionLines.drop(idx).takeWhile { !it.startsWith("==== CRASH") }
+            val head = block.first().substringAfter("Unhandled exception.").trim().take(200)
+            console.log(ConsoleEntry.Level.Error, TAG, "Excecao .NET sem tratamento: $head", block.joinToString("\n"))
+        }
+        if (fusionText.isNotBlank()) {
+            console.log(ConsoleEntry.Level.Warn, TAG, "Log completo do jogo (fusion.log)", fusionLines.takeLast(400).joinToString("\n"))
+        }
+        val bepinexLog = listOf(File(dir, "LogOutput.log"), File(dir, "logs/LogOutput.log"), File(dir, "BepInEx/LogOutput.log"))
+            .firstOrNull { recent(it, crashTime) }
+        if (bepinexLog != null) {
+            console.log(ConsoleEntry.Level.Warn, TAG, "Log do BepInEx (${bepinexLog.name})", tail(bepinexLog).lines().takeLast(200).joinToString("\n"))
+        }
+        val preloader = File(dir, "preloader.log")
+        if (recent(preloader, crashTime)) {
+            console.log(ConsoleEntry.Level.Warn, TAG, "Log do preloader (preloader.log)", tail(preloader).lines().takeLast(200).joinToString("\n"))
         }
         Log.e(TAG, "crash reportado no console")
     }

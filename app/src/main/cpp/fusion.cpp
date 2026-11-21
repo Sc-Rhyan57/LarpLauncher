@@ -37,8 +37,7 @@ using DobbyHookFn = int (*)(void*, void*, void**);
 using InitFn = int (*)(const char*);
 using ParamCountFn = uint32_t (*)(void*);
 using RuntimeInvokeFn = void* (*)(void*, void*, void**, void**);
-// Assinatura real: NextCoreEntrypoint.Start(AuxPluginFolderList* folders) — o BepInEx le
-// folders->Count e folders->Folders[i]; passar nullptr derruba o processo.
+
 struct AuxPluginFolderList {
     int32_t Count;
     const char** Folders;
@@ -166,10 +165,6 @@ void failWith(const char* fmt, ...) {
     publishStage(-1);
 }
 
-
-// ===================== DETECTOR DE CRASH =====================
-// Grava um relatorio em fusion.log e crash.log (o launcher le e mostra no console).
-// Usa so write()/open()/read() e buffers estaticos (seguro dentro de handler de sinal).
 constexpr int kSigMax = 65;
 constexpr int kMaxFrames = 24;
 struct sigaction g_oldActions[kSigMax];
@@ -375,7 +370,6 @@ void installCrashHandler() {
     for (int sig : kSignals) sigaction(sig, &sa, &g_oldActions[sig]);
     logf(ANDROID_LOG_INFO, "detector de crash instalado");
 }
-// =============================================================
 
 void* openLibrary(const char* name) {
     void* handle = dlopen(name, RTLD_NOW | RTLD_GLOBAL);
@@ -526,9 +520,6 @@ void runBepInEx() {
     logf(ANDROID_LOG_INFO, "CoreCLR no ar");
     publishMessage("CoreCLR no ar");
 
-    // O nome do tipo de entrada muda conforme o build do BepInEx: o do Regis usa
-    // FusionCoreEntrypoint, o BepInEx.Android.Launcher usa NextCoreEntrypoint.
-    // 0x80131522 = COR_E_TYPELOAD (tipo nao existe no assembly).
     static const char* kEntryTypes[] = {
         "BepInEx.Unity.IL2CPP.NextCoreEntrypoint",
         "BepInEx.Unity.IL2CPP.FusionCoreEntrypoint",
@@ -547,8 +538,7 @@ void runBepInEx() {
                  static_cast<unsigned int>(rc));
         return;
     }
-    // stdout/stderr de apps Android vao para /dev/null. O .NET escreve "Unhandled exception. ..."
-    // no stderr antes de abortar, entao redirecionamos para o fusion.log (sobrevive ao crash).
+
     std::string logPath = dirPath("fusion.log");
     if (!logPath.empty()) {
         int fd = open(logPath.c_str(), O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC, 0644);
@@ -558,13 +548,13 @@ void runBepInEx() {
             close(fd);
         }
     }
-    // Onde o NextCoreEntrypoint grava a excecao quando o BepInEx falha ao iniciar.
+
     setenv("BEPINEX_PRELOADER_LOG", (bepinexDir + "/preloader.log").c_str(), 0);
     static const char* kEnvNames[] = {"FUSION_BEPINEX_PATH", "FUSION_GAME_BINARY", "BEPINEX_GAME_ASSEMBLY_PATH",
                                       "FUSION_GAME_DATA_DIR", "FUSION_APP_DATA_DIR", "FUSION_UNITY_VERSION",
                                       "BEPINEX_PRELOADER_LOG", "HOME", "TMPDIR"};
     for (const char* name : kEnvNames) logf(ANDROID_LOG_INFO, "env %s=%s", name, env(name).c_str());
-    // O Preloader.Core (EnvVars.LoadVars) le NEXT_*, nao FUSION_*.
+
     static const char* kMap[][2] = {
         {"NEXT_BEPINEX_PATH", "FUSION_BEPINEX_PATH"},
         {"NEXT_GAME_BINARY", "FUSION_GAME_BINARY"},

@@ -56,6 +56,8 @@ class Console @Inject constructor(
     fun w(tag: String, msg: String, t: Throwable? = null) = append(ConsoleEntry.Level.Warn, tag, msg, t)
     fun e(tag: String, msg: String, t: Throwable? = null) = append(ConsoleEntry.Level.Error, tag, msg, t)
 
+    fun log(level: ConsoleEntry.Level, tag: String, msg: String, details: String?) = append(level, tag, msg, null, details)
+
     fun clear() {
         synchronized(lock) {
             runCatching { logFile.writeText("") }
@@ -80,13 +82,13 @@ class Console @Inject constructor(
 
     fun formatTimestamp(entry: ConsoleEntry): String = dateFormat.format(Date(entry.timestamp))
 
-    private fun append(level: ConsoleEntry.Level, tag: String, msg: String, t: Throwable? = null) {
+    private fun append(level: ConsoleEntry.Level, tag: String, msg: String, t: Throwable? = null, details: String? = null) {
         val entry = ConsoleEntry(
             timestamp = System.currentTimeMillis(),
             level = level,
             tag = tag,
             message = msg,
-            throwable = t?.let { unwrap(it).stackTraceToString().take(2000) }
+            throwable = details?.take(MAX_DETAILS) ?: t?.let { unwrap(it).stackTraceToString().take(2000) }
         )
         synchronized(lock) {
             val current = _entries.value.toMutableList()
@@ -116,5 +118,6 @@ class Console @Inject constructor(
 
     private companion object {
         const val MAX_FILE_BYTES = 1_000_000L
+        const val MAX_DETAILS = 60_000
     }
 }
