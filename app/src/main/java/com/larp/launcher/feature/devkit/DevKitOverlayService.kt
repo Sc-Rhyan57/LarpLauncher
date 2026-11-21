@@ -96,7 +96,7 @@ class DevKitOverlayService : Service() {
     private var choreographer: Choreographer? = null
     private var frameCount = 0
     private var lastFps = 0
-    private val frameCallback = object : Choreographer.FrameCallback() {
+    private val frameCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
             frameCount++
             choreographer?.postFrameCallback(this)
