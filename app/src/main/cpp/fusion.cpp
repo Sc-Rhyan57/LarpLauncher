@@ -491,6 +491,21 @@ void runBepInEx() {
     }
     setenv("BEPINEX_PRELOADER_LOG", (bepinexDir + "/preloader.log").c_str(), 1);
     if (chdir(bepinexDir.c_str()) != 0) logf(ANDROID_LOG_WARN, "chdir %s falhou", bepinexDir.c_str());
+    static const char* kMap[][2] = {
+        {"NEXT_BEPINEX_PATH", "FUSION_BEPINEX_PATH"},
+        {"NEXT_GAME_BINARY", "FUSION_GAME_BINARY"},
+        {"NEXT_GAME_DATA_DIR", "FUSION_GAME_DATA_DIR"},
+        {"NEXT_APP_DATA_DIR", "FUSION_APP_DATA_DIR"},
+        {"NEXT_UNITY_VERSION", "FUSION_UNITY_VERSION"},
+    };
+    for (auto& pair : kMap) {
+        std::string value = env(pair[1]);
+        if (value.empty()) logf(ANDROID_LOG_WARN, "%s vazio; %s nao sera definido", pair[1], pair[0]);
+        else setenv(pair[0], value.c_str(), 1);
+        logf(ANDROID_LOG_INFO, "env %s=%s", pair[0], env(pair[0]).c_str());
+    }
+    std::string appData = env("NEXT_APP_DATA_DIR");
+    if (!appData.empty()) mkdir(appData.c_str(), 0755);
     g_phase = "coreclr_initialize";
     publishMessage("Iniciando CoreCLR");
     void* clr = openLibrary("libcoreclr.so");
@@ -556,21 +571,6 @@ void runBepInEx() {
                                       "BEPINEX_PRELOADER_LOG", "HOME", "TMPDIR"};
     for (const char* name : kEnvNames) logf(ANDROID_LOG_INFO, "env %s=%s", name, env(name).c_str());
 
-    static const char* kMap[][2] = {
-        {"NEXT_BEPINEX_PATH", "FUSION_BEPINEX_PATH"},
-        {"NEXT_GAME_BINARY", "FUSION_GAME_BINARY"},
-        {"NEXT_GAME_DATA_DIR", "FUSION_GAME_DATA_DIR"},
-        {"NEXT_APP_DATA_DIR", "FUSION_APP_DATA_DIR"},
-        {"NEXT_UNITY_VERSION", "FUSION_UNITY_VERSION"},
-    };
-    for (auto& pair : kMap) {
-        std::string value = env(pair[1]);
-        if (value.empty()) logf(ANDROID_LOG_WARN, "%s vazio; %s nao sera definido", pair[1], pair[0]);
-        else setenv(pair[0], value.c_str(), 1);
-        logf(ANDROID_LOG_INFO, "env %s=%s", pair[0], env(pair[0]).c_str());
-    }
-    std::string appData = env("NEXT_APP_DATA_DIR");
-    if (!appData.empty()) mkdir(appData.c_str(), 0755);
     static AuxPluginFolderList noAux = {0, nullptr};
     g_phase = "BepInEx.Start (carregando plugins/mods)";
     logf(ANDROID_LOG_INFO, "chamando o BepInEx");
