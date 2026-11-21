@@ -85,8 +85,8 @@ class DevKitCatalogExtractor @Inject constructor(
 
     companion object {
         private const val POLL_MS = 2000L
-        private const val INITIAL_DELAY_MS = 30_000L
-        private const val FORCE_AFTER_MS = 90_000L
+        private const val INITIAL_DELAY_MS = 5_000L
+        private const val FORCE_AFTER_MS = 60_000L
         private const val GIVE_UP_MS = 300_000L
     }
 }

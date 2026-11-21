@@ -281,7 +281,7 @@ class DevKitOverlayService : Service() {
         out += "Loader: etapa=${com.regis.boot.Boot.stage} ${com.regis.boot.Boot.message}"
         val dotnet = modCache.dotnetDir()
         out += "dotnet: " + if (File(dotnet, "System.Private.CoreLib.dll").isFile) "ok" else "Error: ausente"
-        out += "libcoreclr: " + if (File(dotnet, "libcoreclr.so").isFile || File(applicationInfo.nativeLibraryDir, "libcoreclr.so").isFile) "ok" else "Error: não encontrada"
+        out += "libcoreclr: " + describeCoreclr(dotnet)
         out += "BepInEx core: " + if (File(modCache.bepinexDir(), "core/BepInEx.Core.dll").isFile) "ok" else "Error: ausente"
         val plugins = modCache.bepinexPluginsDir().walkTopDown().filter { it.isFile && it.extension.equals("dll", true) }.toList()
         out += "Plugins em disco: ${plugins.size}"
@@ -296,6 +296,18 @@ class DevKitOverlayService : Service() {
         if (log.isEmpty()) out += "Aviso: LogOutput.log ainda não existe"
         com.regis.boot.Boot.lines().takeLast(8).forEach { out += "boot: $it" }
         return out
+    }
+
+    private fun describeCoreclr(dotnet: File): String {
+        // 1. direto no filesDir/dotnet (caso o zip trouxesse)
+        if (File(dotnet, "libcoreclr.so").isFile) return "ok (dotnet)"
+        // 2. direto no nativeLibraryDir do launcher (caso extractNativeLibs=true)
+        if (File(applicationInfo.nativeLibraryDir, "libcoreclr.so").isFile) return "ok (nativelib)"
+        // 3. via classloader findLibrary (funciona mesmo se mapeada do APK)
+        val classLoader = (javaClass.classLoader as? dalvik.system.BaseDexClassLoader)
+        val path = classLoader?.findLibrary("coreclr")
+        if (path != null) return "ok ($path)"
+        return "Error: não encontrada"
     }
 
     private fun logsLines(): List<String> {

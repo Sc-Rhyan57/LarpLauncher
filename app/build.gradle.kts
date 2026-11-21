@@ -119,7 +119,10 @@ android {
 
     packaging {
         jniLibs {
-            useLegacyPackaging = false
+            // CRÍTICO: useLegacyPackaging=true extrai as .so para nativeLibraryDir em disco.
+            // O libfusion.so (do RegisLauncher) faz dlopen("<dir>/libcoreclr.so") com path
+            // absoluto — precisa do arquivo em disco, não comprimido dentro do APK.
+            useLegacyPackaging = true
             pickFirsts += setOf(
                 "lib/*/libcrypto.so",
                 "lib/*/libssl.so",
