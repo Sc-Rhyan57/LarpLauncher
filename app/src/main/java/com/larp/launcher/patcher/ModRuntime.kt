@@ -113,6 +113,7 @@ class ModRuntime @Inject constructor(
         setenv("FUSION_GAME_BINARY", libil2cpp.absolutePath)
         setenv("BEPINEX_GAME_ASSEMBLY_PATH", libil2cpp.absolutePath)
         setenv("FUSION_GAME_DATA_DIR", gameDataDir.absolutePath)
+        File(externalFiles, "dados").mkdirs()
         setenv("FUSION_APP_DATA_DIR", File(externalFiles, "dados").absolutePath)
         setenv("FUSION_UNITY_VERSION", unityVersion)
         setenv("DOTNET_GCConserveMemory", "7")

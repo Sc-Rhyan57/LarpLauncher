@@ -3,7 +3,7 @@ Bibliotecas nativas (.so) do runtime de mods do Larp Launcher.
 ESTAS LIBS JÁ ESTÃO INCLUIDAS NO PROJETO (extraídas do APK original do Regis Launcher):
 
   app/src/main/jniLibs/arm64-v8a/
-  ├── libfusion.so                                   13 KB   bootstrap (carrega CoreCLR + BepInEx + Dobby)
+  ├── (libfusion.so NÃO fica aqui: é compilado de app/src/main/cpp/fusion.cpp pelo CMake)
   ├── libcoreclr.so                                 6.2 MB   .NET CoreCLR runtime
   ├── libclrjit.so                                  3.1 MB   .NET JIT compiler
   ├── libcrypto.so                                  4.2 MB   OpenSSL crypto

@@ -55,8 +55,27 @@ object Boot {
         localMessage = ""
         history.clear()
         val dir = statusDir() ?: return
+        // guarda o log da execução anterior (se o jogo crashou, é a única pista)
+        runCatching {
+            val last = File(dir, "fusion.log")
+            val prev = File(dir, "fusion.prev.log")
+            if (last.isFile && last.length() > 0) { prev.delete(); last.renameTo(prev) }
+        }
         STATUS_FILES.forEach { name -> runCatching { File(dir, name).delete() } }
     }
+
+    @JvmStatic
+    fun previousLog(dir: File): List<String> = runCatching {
+        val f = File(dir, "fusion.prev.log")
+        if (!f.isFile) emptyList() else {
+            RandomAccessFile(f, "r").use { raf ->
+                val start = maxOf(0L, raf.length() - 6000L)
+                raf.seek(start)
+                val b = ByteArray((raf.length() - start).toInt()); raf.readFully(b)
+                String(b, Charsets.UTF_8).lines().filter { it.isNotBlank() }
+            }
+        }
+    }.getOrDefault(emptyList())
 
     private fun fusionLog(): List<String> {
         val dir = statusDir() ?: return emptyList()

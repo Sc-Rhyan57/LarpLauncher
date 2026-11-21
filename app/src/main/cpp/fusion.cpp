@@ -32,7 +32,13 @@ using DobbyHookFn = int (*)(void*, void*, void**);
 using InitFn = int (*)(const char*);
 using ParamCountFn = uint32_t (*)(void*);
 using RuntimeInvokeFn = void* (*)(void*, void*, void**, void**);
-using StartFn = void (*)();
+// Assinatura real: NextCoreEntrypoint.Start(AuxPluginFolderList* folders) — o BepInEx le
+// folders->Count e folders->Folders[i]; passar nullptr derruba o processo.
+struct AuxPluginFolderList {
+    int32_t Count;
+    const char** Folders;
+};
+using StartFn = void (*)(AuxPluginFolderList*);
 using ClrInitFn = int (*)(const char*, const char*, int, const char**, const char**, void**, unsigned int*);
 using ClrDelegateFn = int (*)(void*, unsigned int, const char*, const char*, const char*, void**);
 using ClrErrorWriter = void (*)(const char*);
@@ -320,8 +326,42 @@ void runBepInEx() {
                  static_cast<unsigned int>(rc));
         return;
     }
+    // stdout/stderr de apps Android vao para /dev/null. O .NET escreve "Unhandled exception. ..."
+    // no stderr antes de abortar, entao redirecionamos para o fusion.log (sobrevive ao crash).
+    std::string logPath = dirPath("fusion.log");
+    if (!logPath.empty()) {
+        int fd = open(logPath.c_str(), O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC, 0644);
+        if (fd >= 0) {
+            dup2(fd, 1);
+            dup2(fd, 2);
+            close(fd);
+        }
+    }
+    // Onde o NextCoreEntrypoint grava a excecao quando o BepInEx falha ao iniciar.
+    setenv("BEPINEX_PRELOADER_LOG", (bepinexDir + "/preloader.log").c_str(), 0);
+    static const char* kEnvNames[] = {"FUSION_BEPINEX_PATH", "FUSION_GAME_BINARY", "BEPINEX_GAME_ASSEMBLY_PATH",
+                                      "FUSION_GAME_DATA_DIR", "FUSION_APP_DATA_DIR", "FUSION_UNITY_VERSION",
+                                      "BEPINEX_PRELOADER_LOG", "HOME", "TMPDIR"};
+    for (const char* name : kEnvNames) logf(ANDROID_LOG_INFO, "env %s=%s", name, env(name).c_str());
+    // O Preloader.Core (EnvVars.LoadVars) le NEXT_*, nao FUSION_*.
+    static const char* kMap[][2] = {
+        {"NEXT_BEPINEX_PATH", "FUSION_BEPINEX_PATH"},
+        {"NEXT_GAME_BINARY", "FUSION_GAME_BINARY"},
+        {"NEXT_GAME_DATA_DIR", "FUSION_GAME_DATA_DIR"},
+        {"NEXT_APP_DATA_DIR", "FUSION_APP_DATA_DIR"},
+        {"NEXT_UNITY_VERSION", "FUSION_UNITY_VERSION"},
+    };
+    for (auto& pair : kMap) {
+        std::string value = env(pair[1]);
+        if (value.empty()) logf(ANDROID_LOG_WARN, "%s vazio; %s nao sera definido", pair[1], pair[0]);
+        else setenv(pair[0], value.c_str(), 1);
+        logf(ANDROID_LOG_INFO, "env %s=%s", pair[0], env(pair[0]).c_str());
+    }
+    std::string appData = env("NEXT_APP_DATA_DIR");
+    if (!appData.empty()) mkdir(appData.c_str(), 0755);
+    static AuxPluginFolderList noAux = {0, nullptr};
     logf(ANDROID_LOG_INFO, "chamando o BepInEx");
-    reinterpret_cast<StartFn>(entry)();
+    reinterpret_cast<StartFn>(entry)(&noAux);
     logf(ANDROID_LOG_INFO, "BepInEx devolveu o controle");
     if (currentStage() >= 0 && currentStage() < 2) publishStage(2);
 }

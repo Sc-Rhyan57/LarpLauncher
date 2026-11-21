@@ -666,6 +666,17 @@ class DevKitOverlayService : Service() {
         errors.takeLast(12).forEach { out += "  ✖ $it" }
         if (log.isEmpty()) out += "Aviso: LogOutput.log ainda não existe"
         com.regis.boot.Boot.lines().takeLast(14).forEach { out += "boot: $it" }
+        runCatching {
+            val dir = modCache.bepinexDir()
+            File(dir, "preloader.log").takeIf { it.isFile }?.readLines()?.takeLast(12)?.forEach { out += "pre: $it" }
+            com.regis.boot.Boot.previousLog(dir).takeLast(14).forEach { out += "ant: $it" }
+        }
+        if (android.os.Build.VERSION.SDK_INT >= 30) runCatching {
+            val am = getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+            am.getHistoricalProcessExitReasons(packageName, 0, 3).forEach {
+                out += "saida: ${it.processName} reason=${it.reason} status=${it.status} ${it.description ?: ""}"
+            }
+        }
         return out
     }
 
