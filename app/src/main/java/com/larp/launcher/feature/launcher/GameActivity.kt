@@ -48,7 +48,6 @@ class GameActivity : ComponentActivity() {
     private var diario: Diario? = null
     private var devKitStarted: Boolean = false
     private var resumed: Boolean = false
-    @Volatile private var elapsedSkip: Boolean = false
 
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(base)
@@ -335,6 +334,8 @@ class GameActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             setBackgroundColor(Color.parseColor("#FF0D1117"))
             isClickable = true
+            isFocusable = true
+            setOnTouchListener { _, _ -> true }
         }
         val title = TextView(this).apply {
             text = if (isPt) "Preparando mods…" else "Preparing mods…"
@@ -367,16 +368,11 @@ class GameActivity : ComponentActivity() {
         val tick = object : Runnable {
             var shown = 0
             override fun run() {
-                if (elapsedSkip) {
-                    runBlocking { d.finish("ignorado") }
-                    (overlay.parent as? ViewGroup)?.removeView(overlay)
-                    return
-                }
                 val stage = Boot.stage
                 val msg = Boot.message
                 val elapsed = SystemClock.uptimeMillis() - start
                 runBlocking { d.step("stage=$stage msg=$msg") }
-                if (stage in 0..1 && elapsed <= MAX_WAIT_MS && !isFinishing) {
+                if (stage in 0..1 && !isFinishing) {
                     val pct = progressFor(stage, msg)
                     if (pct > shown) shown = pct
                     bar.progress = shown
@@ -385,10 +381,6 @@ class GameActivity : ComponentActivity() {
                         val mins = elapsed / 60000
                         status.text = if (isPt) "Isso só acontece na primeira vez e quando o jogo atualiza. Pode levar alguns minutos em celulares simples: não saia do app." + (if (mins >= 1) "\n$mins min" else "")
                         else "This only happens the first time and when the game updates. It can take a few minutes on simpler phones: don't leave the app." + (if (mins >= 1) "\n$mins min" else "")
-                    }
-                    if (elapsed > SKIP_AFTER_MS) {
-                        status.text = if (isPt) "Toque na tela para fechar este aviso e entrar no jogo." else "Tap the screen to dismiss this and enter the game."
-                        overlay.setOnClickListener { elapsedSkip = true }
                     }
                     handler.postDelayed(this, 200)
                     return
@@ -443,8 +435,6 @@ class GameActivity : ComponentActivity() {
         private const val EXTRA_NO_MODS = "sem_mods"
         private const val EXTRA_FRIDA = "frida"
         const val DEFAULT_GAME_PACKAGE = "com.innersloth.spacemafia"
-        private const val MAX_WAIT_MS = 1_200_000L
-        private const val SKIP_AFTER_MS = 20_000L
 
         @Volatile var current: java.lang.ref.WeakReference<GameActivity>? = null
 

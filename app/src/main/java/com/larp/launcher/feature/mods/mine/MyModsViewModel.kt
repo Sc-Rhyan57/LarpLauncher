@@ -110,6 +110,8 @@ class MyModsViewModel @Inject constructor(
     }
 
     fun launchWithLocalMods(onStarted: () -> Unit = {}) {
+        val current = _launch.value
+        if (current != null && current.stage != PatchProgress.Stage.Failed) return
         viewModelScope.launch {
             val enabled = state.value.mods.filter { it.enabled && it.dllPath.isNotBlank() }
             if (enabled.isEmpty()) {
