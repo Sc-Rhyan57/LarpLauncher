@@ -42,3 +42,5 @@
 -keepclasseswithmembernames class * { native <methods>; }
 
 -keep class com.larp.launcher.boot.GameBoot { *; }
+
+-keep class com.larp.launcher.ui.** { *; }

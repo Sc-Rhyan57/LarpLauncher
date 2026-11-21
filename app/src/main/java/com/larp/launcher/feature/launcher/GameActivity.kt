@@ -69,6 +69,8 @@ class GameActivity : ComponentActivity() {
         setTheme(android.R.style.Theme_Material_NoActionBar)
         super.onCreate(savedInstanceState)
         current = java.lang.ref.WeakReference(this)
+        com.larp.launcher.ui.LarpNative.load()
+        com.larp.launcher.ui.LarpOverlay.attach(this)
         java.io.File(filesDir, ERROR_FILE).delete()
         val e = env
         if (e == null) {
@@ -213,6 +215,7 @@ class GameActivity : ComponentActivity() {
 
     override fun onDestroy() {
         if (current?.get() === this) current = null
+        com.larp.launcher.ui.LarpOverlay.detach()
         callPlayer("destroy")
         if (devKitStarted) {
             runCatching { baseContext.stopService(launcherServiceIntent(DevKitOverlayService::class.java)) }

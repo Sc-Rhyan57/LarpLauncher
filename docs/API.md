@@ -289,3 +289,13 @@ Bindings sugeridos:
 - `DURABLE_OBJECT = ROOM` (estado de sala + voice signaling) — opcional se quiser Durable Objects
 - `CALLS = larp_calls` (Cloudflare Calls API)
 - `D1 = larp_db` (tabelas: users, mods, announcements, rooms, room_participants)
+
+## Larp Overlay API (mods)
+
+Kotlin: `com.larp.launcher.ui.LarpOverlay` (processo `:game`). Nativo: `liblarpui.so`. Mod: `Larp.Ui.LarpUi` (`LarpUi.cs`).
+
+Comandos (JSON): `layer`, `add`, `set`, `remove`, `clear`, `destroy`, `call`, `toast`.
+Tipos de node: `frame`, `column`, `row`, `scroll`, `hscroll`, `text`, `button`, `toggle`, `checkbox`, `slider`, `input`, `progress`, `image`, `canvas`, `spinner`, `view`.
+Layer `mode`: `activity` (padrão, sem permissão) ou `system` (precisa de SYSTEM_ALERT_WINDOW; sem ela cai para `activity`).
+Layout/tamanhos em dp, desenho do canvas em px. Eventos: `click`, `change`, `text`, `select`, `touch`, `drag`.
+Chame `LarpUi.Pump()` todo frame na thread do Unity para receber eventos.

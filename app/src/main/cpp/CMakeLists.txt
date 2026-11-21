@@ -15,3 +15,8 @@ target_link_options(larpdevkit PRIVATE -Wl,-z,max-page-size=16384)
 target_link_options(fusion PRIVATE -Wl,-z,max-page-size=16384)
 target_link_options(nextbep PRIVATE -Wl,-z,max-page-size=16384)
 target_compile_options(nextbep PRIVATE -O2 -fno-rtti -fno-exceptions -fvisibility=hidden)
+
+add_library(larpui SHARED larpui.cpp)
+target_compile_options(larpui PRIVATE -O2 -fno-rtti -fno-exceptions)
+target_link_libraries(larpui ${log-lib})
+target_link_options(larpui PRIVATE -Wl,-z,max-page-size=16384)
