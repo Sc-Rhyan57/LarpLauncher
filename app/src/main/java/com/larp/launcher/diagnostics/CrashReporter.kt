@@ -110,9 +110,11 @@ object CrashReporter {
         if (bepinexLog != null) {
             console.log(ConsoleEntry.Level.Warn, TAG, "Log do BepInEx (${bepinexLog.name})", tail(bepinexLog).lines().takeLast(200).joinToString("\n"))
         }
-        val preloader = File(dir, "preloader.log")
-        if (recent(preloader, crashTime)) {
-            console.log(ConsoleEntry.Level.Warn, TAG, "Log do preloader (preloader.log)", tail(preloader).lines().takeLast(200).joinToString("\n"))
+        val preloader = dir.listFiles { f -> f.isFile && f.name.startsWith("preloader") && f.name.endsWith(".log") }
+            ?.filter { recent(it, crashTime) }
+            ?.maxByOrNull { it.lastModified() }
+        if (preloader != null) {
+            console.log(ConsoleEntry.Level.Warn, TAG, "Log do preloader (${preloader.name})", tail(preloader).lines().takeLast(200).joinToString("\n"))
         }
         Log.e(TAG, "crash reportado no console")
     }

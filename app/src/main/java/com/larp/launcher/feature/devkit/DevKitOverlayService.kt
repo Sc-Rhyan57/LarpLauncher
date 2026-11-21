@@ -578,7 +578,9 @@ class DevKitOverlayService : Service() {
         com.regis.boot.Boot.lines().takeLast(14).forEach { out += "boot: $it" }
         runCatching {
             val dir = modCache.bepinexDir()
-            File(dir, "preloader.log").takeIf { it.isFile }?.readLines()?.takeLast(12)?.forEach { out += "pre: $it" }
+            dir.listFiles { f -> f.isFile && f.name.startsWith("preloader") && f.name.endsWith(".log") }
+                ?.maxByOrNull { it.lastModified() }
+                ?.readLines()?.takeLast(12)?.forEach { out += "pre: $it" }
             com.regis.boot.Boot.previousLog(dir).takeLast(30).forEach { out += "ant: $it" }
         }
         if (android.os.Build.VERSION.SDK_INT >= 30) runCatching {

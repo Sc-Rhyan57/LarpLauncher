@@ -489,6 +489,8 @@ void runBepInEx() {
                  !dotnetDir.empty(), !libDirs.empty(), !bepinexDir.empty(), !gameBinary.empty());
         return;
     }
+    setenv("BEPINEX_PRELOADER_LOG", bepinexDir.c_str(), 1);
+    if (chdir(bepinexDir.c_str()) != 0) logf(ANDROID_LOG_WARN, "chdir %s falhou", bepinexDir.c_str());
     g_phase = "coreclr_initialize";
     publishMessage("Iniciando CoreCLR");
     void* clr = openLibrary("libcoreclr.so");
@@ -549,7 +551,6 @@ void runBepInEx() {
         }
     }
 
-    setenv("BEPINEX_PRELOADER_LOG", (bepinexDir + "/preloader.log").c_str(), 0);
     static const char* kEnvNames[] = {"FUSION_BEPINEX_PATH", "FUSION_GAME_BINARY", "BEPINEX_GAME_ASSEMBLY_PATH",
                                       "FUSION_GAME_DATA_DIR", "FUSION_APP_DATA_DIR", "FUSION_UNITY_VERSION",
                                       "BEPINEX_PRELOADER_LOG", "HOME", "TMPDIR"};
