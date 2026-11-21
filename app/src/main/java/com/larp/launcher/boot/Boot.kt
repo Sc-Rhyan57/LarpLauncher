@@ -1,6 +1,8 @@
 package com.larp.launcher.boot
 
+import android.system.Os
 import android.util.Log
+import java.io.File
 import java.lang.reflect.InvocationTargetException
 import com.regis.boot.Boot as Native
 
@@ -32,6 +34,16 @@ object Boot {
             if (fusionError != null) {
                 fail(IllegalStateException(fusionError))
                 false
+            } else if (!fusionWroteStatus()) {
+                // O fusion.cpp novo grava fusion.stage no JNI_OnLoad. Se o arquivo não existe,
+                // quem carregou foi outro libfusion.so (o antigo do Regis, que reporta só via JNI
+                // para outra cópia da classe Boot) ou uma cópia velha em filesDir/native.
+                fail(IllegalStateException(
+                    "fusion: libfusion.so carregou mas não gravou fusion.stage em " +
+                        "${Os.getenv("FUSION_LOG_DIR")} — versão ERRADA/antiga do libfusion.so " +
+                        "(apague app/src/main/jniLibs/arm64-v8a/libfusion.so, recompile e reinstale)"
+                ))
+                false
             } else {
                 Log.i(TAG, "fusion carregado (stage=${Native.stage})")
                 true
@@ -40,6 +52,11 @@ object Boot {
             fail(if (t is InvocationTargetException) t.targetException ?: t else t)
             false
         }
+    }
+
+    private fun fusionWroteStatus(): Boolean {
+        val dir = Os.getenv("FUSION_LOG_DIR")?.takeIf { it.isNotBlank() } ?: return false
+        return File(dir, "fusion.stage").isFile
     }
 
     private fun fail(t: Throwable) {

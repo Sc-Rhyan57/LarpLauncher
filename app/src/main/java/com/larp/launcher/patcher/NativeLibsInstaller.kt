@@ -10,7 +10,7 @@ object NativeLibsInstaller {
     private const val TAG = "LarpLauncher"
     private const val DIR_NAME = "native"
     private const val VERSION_FILE = "version.txt"
-    private const val CURRENT_VERSION = 1
+    private const val CURRENT_VERSION = 2
 
     fun ensureInstalled(context: Context): File {
         val target = File(context.filesDir, DIR_NAME)
@@ -22,7 +22,7 @@ object NativeLibsInstaller {
             Log.w(TAG, "Nenhuma .so bundled encontrada em $launcherLibDir; usando dir do jogo")
             return launcherLibDir
         }
-        val fingerprint = computeFingerprint(bundled)
+        val fingerprint = computeFingerprint(bundled) + ":" + launcherUpdateTime(context)
         val cached = versionFile.takeIf { it.isFile }?.readText().orEmpty()
         if (cached == "$CURRENT_VERSION:$fingerprint") {
             Log.i(TAG, "Native libs já instaladas em $target")
@@ -78,6 +78,11 @@ object NativeLibsInstaller {
         if (!dir.isDirectory) return emptyList()
         return dir.listFiles { f -> f.isFile && f.name.endsWith(".so") }?.toList() ?: emptyList()
     }
+
+    // nome+tamanho não bastam: um libfusion.so recompilado com o mesmo tamanho ficava preso na
+    // cópia velha de filesDir/native (que vem primeiro no search path do jogo).
+    private fun launcherUpdateTime(context: Context): Long =
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime }.getOrDefault(0L)
 
     private fun computeFingerprint(files: List<File>): String {
         val md = MessageDigest.getInstance("SHA-256")

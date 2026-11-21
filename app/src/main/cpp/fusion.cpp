@@ -300,11 +300,24 @@ void runBepInEx() {
     logf(ANDROID_LOG_INFO, "CoreCLR no ar");
     publishMessage("CoreCLR no ar");
 
+    // O nome do tipo de entrada muda conforme o build do BepInEx: o do Regis usa
+    // FusionCoreEntrypoint, o BepInEx.Android.Launcher usa NextCoreEntrypoint.
+    // 0x80131522 = COR_E_TYPELOAD (tipo nao existe no assembly).
+    static const char* kEntryTypes[] = {
+        "BepInEx.Unity.IL2CPP.NextCoreEntrypoint",
+        "BepInEx.Unity.IL2CPP.FusionCoreEntrypoint",
+    };
     void* entry = nullptr;
-    rc = clrDelegate(host, domain, "BepInEx.Unity.IL2CPP", "BepInEx.Unity.IL2CPP.FusionCoreEntrypoint", "Start",
-                     &entry);
+    rc = -1;
+    for (const char* type : kEntryTypes) {
+        entry = nullptr;
+        rc = clrDelegate(host, domain, "BepInEx.Unity.IL2CPP", type, "Start", &entry);
+        logf(ANDROID_LOG_INFO, "create_delegate %s.Start: 0x%08x", type, static_cast<unsigned int>(rc));
+        if (rc >= 0 && entry) break;
+    }
     if (rc < 0 || !entry) {
-        failWith("nao achei FusionCoreEntrypoint.Start: 0x%08x", static_cast<unsigned int>(rc));
+        failWith("nao achei NextCoreEntrypoint/FusionCoreEntrypoint.Start em BepInEx.Unity.IL2CPP: 0x%08x",
+                 static_cast<unsigned int>(rc));
         return;
     }
     logf(ANDROID_LOG_INFO, "chamando o BepInEx");
