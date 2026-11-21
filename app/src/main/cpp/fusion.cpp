@@ -309,7 +309,7 @@ void writeReport(int sig, siginfo_t* info, void* ctx, int tid) {
     cPut("==== CRASH NATIVO (Fatal) ====\n");
     cPut("sinal: "); cPut(sigName(sig)); cPut(" ("); cDec(sig); cPut(") code="); cDec(info ? info->si_code : 0);
     cPut(" addr="); cHex(fault); cPut(" epoch="); cDec(static_cast<int64_t>(time(nullptr))); cPut("\n");
-    cPut("thread: tid="); cDec(tid); cPut(" nome="); cPut(name); cPut("\n");
+    cPut("thread: tid="); cDec(tid); cPut(" pid="); cDec(getpid()); cPut(" nome="); cPut(name); cPut("\n");
     cPut("etapa: "); cPut(g_phase.load()); cPut(" (stage="); cDec(g_stage.load()); cPut(")\n");
     uintptr_t lh = g_lastHook.load();
     if (lh) { cPut("ultimo hook: "); cHex(lh); cPut(" rc="); cDec(g_lastHookRc.load()); cPut("\n"); }

@@ -35,11 +35,11 @@ object CrashReporter {
 
     fun watch(context: Context, console: Console) {
         dirs(context).forEach { dir ->
-            consume(dir, console)
+            Thread { consume(dir, console) }.start()
             dir.mkdirs()
             val obs = object : FileObserver(dir, CLOSE_WRITE or MOVED_TO) {
                 override fun onEvent(event: Int, path: String?) {
-                    if (path == "crash.log") consume(dir, console)
+                    if (path == "crash.log") Thread { consume(dir, console) }.start()
                 }
             }
             obs.startWatching()
@@ -78,6 +78,20 @@ object CrashReporter {
             lines.getOrNull(2).orEmpty()
         }
         console.log(ConsoleEntry.Level.Error, TAG, "O jogo crashou: $title", report)
+
+        val pid = Regex("pid=(\\d+)").find(report)?.groupValues?.get(1)
+        if (pid != null) {
+            runCatching {
+                Thread.sleep(1500)
+                val proc = ProcessBuilder("logcat", "-d", "-v", "threadtime", "--pid=$pid", "-t", "800")
+                    .redirectErrorStream(true).start()
+                val text = proc.inputStream.bufferedReader().readText()
+                proc.waitFor()
+                if (text.isNotBlank()) {
+                    console.log(ConsoleEntry.Level.Warn, TAG, "Logcat do jogo (pid $pid)", text.lines().takeLast(400).joinToString("\n"))
+                }
+            }
+        }
 
         val fusion = File(dir, "fusion.log")
         val fusionText = if (fusion.isFile) tail(fusion) else ""
