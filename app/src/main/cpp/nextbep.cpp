@@ -54,7 +54,7 @@ NEXTBEP_EXPORT uint8_t get_low_memory_mode() {
     return fn ? fn() : 0;
 }
 
-NEXTBEP_EXPORT void* get_il2cpp_api(const char* name) {
-    static auto fn = reinterpret_cast<void* (*)(const char*)>(resolve("get_il2cpp_api"));
+NEXTBEP_EXPORT const char* get_il2cpp_api(const char* name) {
+    static auto fn = reinterpret_cast<const char* (*)(const char*)>(resolve("get_il2cpp_api"));
     return fn ? fn(name) : nullptr;
 }

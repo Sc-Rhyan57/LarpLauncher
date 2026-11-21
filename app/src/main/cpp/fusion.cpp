@@ -681,9 +681,12 @@ FUSION_EXPORT uint8_t unhook_checked(void* target) {
 
 FUSION_EXPORT uint8_t get_low_memory_mode() { return 0; }
 
-FUSION_EXPORT void* get_il2cpp_api(const char* name) {
-    if (!name || !g_il2cpp) return nullptr;
-    return dlsym(g_il2cpp, name);
+FUSION_EXPORT const char* get_il2cpp_api(const char* name) {
+    static thread_local char buffer[256];
+    if (!name) return nullptr;
+    strncpy(buffer, name, sizeof(buffer) - 1);
+    buffer[sizeof(buffer) - 1] = '\0';
+    return buffer;
 }
 
 FUSION_EXPORT int JNI_OnLoad(void*, void*) {
