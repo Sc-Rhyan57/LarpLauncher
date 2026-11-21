@@ -141,8 +141,7 @@ object LarpOverlay {
     }
 
     private fun emit(layer: String, node: String, event: String, value: String) {
-        if (!LarpNative.load()) return
-        LarpNative.nativeEmit(layer, node, event, value)
+        LarpNative.emit(layer, node, event, value)
     }
 
     private fun exec(o: JSONObject) {
