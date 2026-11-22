@@ -48,71 +48,20 @@ if(NOT EXISTS ${LUAU_DIR}/VM/src/lapi.cpp)
     endif()
 endif()
 
-set(LUAU_VM_SRC
-    ${LUAU_DIR}/VM/src/lapi.cpp
-    ${LUAU_DIR}/VM/src/laux.cpp
-    ${LUAU_DIR}/VM/src/lbaselib.cpp
-    ${LUAU_DIR}/VM/src/lbitlib.cpp
-    ${LUAU_DIR}/VM/src/lbuffer.cpp
-    ${LUAU_DIR}/VM/src/lbuflib.cpp
-    ${LUAU_DIR}/VM/src/lbuiltins.cpp
-    ${LUAU_DIR}/VM/src/lcorolib.cpp
-    ${LUAU_DIR}/VM/src/ldblib.cpp
-    ${LUAU_DIR}/VM/src/ldebug.cpp
-    ${LUAU_DIR}/VM/src/ldo.cpp
-    ${LUAU_DIR}/VM/src/lfunc.cpp
-    ${LUAU_DIR}/VM/src/lgc.cpp
-    ${LUAU_DIR}/VM/src/lgcdebug.cpp
-    ${LUAU_DIR}/VM/src/linit.cpp
-    ${LUAU_DIR}/VM/src/lmathlib.cpp
-    ${LUAU_DIR}/VM/src/lmem.cpp
-    ${LUAU_DIR}/VM/src/lnumprint.cpp
-    ${LUAU_DIR}/VM/src/lobject.cpp
-    ${LUAU_DIR}/VM/src/loslib.cpp
-    ${LUAU_DIR}/VM/src/lperf.cpp
-    ${LUAU_DIR}/VM/src/lstate.cpp
-    ${LUAU_DIR}/VM/src/lstring.cpp
-    ${LUAU_DIR}/VM/src/lstrlib.cpp
-    ${LUAU_DIR}/VM/src/ltable.cpp
-    ${LUAU_DIR}/VM/src/ltablib.cpp
-    ${LUAU_DIR}/VM/src/ltm.cpp
-    ${LUAU_DIR}/VM/src/ludata.cpp
-    ${LUAU_DIR}/VM/src/lutf8lib.cpp
-    ${LUAU_DIR}/VM/src/lvmexecute.cpp
-    ${LUAU_DIR}/VM/src/lvmload.cpp
-    ${LUAU_DIR}/VM/src/lvmutils.cpp
-)
-
-set(LUAU_COMPILER_SRC
-    ${LUAU_DIR}/Compiler/src/BytecodeBuilder.cpp
-    ${LUAU_DIR}/Compiler/src/Compiler.cpp
-    ${LUAU_DIR}/Compiler/src/Builtins.cpp
-    ${LUAU_DIR}/Compiler/src/BuiltinFolding.cpp
-    ${LUAU_DIR}/Compiler/src/ConstantFolding.cpp
-    ${LUAU_DIR}/Compiler/src/CostModel.cpp
-    ${LUAU_DIR}/Compiler/src/TableShape.cpp
-    ${LUAU_DIR}/Compiler/src/Types.cpp
-    ${LUAU_DIR}/Compiler/src/ValueTracking.cpp
-    ${LUAU_DIR}/Compiler/src/lcode.cpp
-)
-
-set(LUAU_AST_SRC
-    ${LUAU_DIR}/Ast/src/Ast.cpp
-    ${LUAU_DIR}/Ast/src/Confusables.cpp
-    ${LUAU_DIR}/Ast/src/Lexer.cpp
-    ${LUAU_DIR}/Ast/src/Location.cpp
-    ${LUAU_DIR}/Ast/src/Parser.cpp
-    ${LUAU_DIR}/Ast/src/StringUtils.cpp
-    ${LUAU_DIR}/Ast/src/TimeTrace.cpp
-)
+# Glob em vez de lista fixa: evita esquecer arquivos (ex: Allocator.cpp, Cst.cpp)
+file(GLOB LUAU_VM_SRC ${LUAU_DIR}/VM/src/*.cpp)
+file(GLOB LUAU_COMPILER_SRC ${LUAU_DIR}/Compiler/src/*.cpp)
+file(GLOB LUAU_AST_SRC ${LUAU_DIR}/Ast/src/*.cpp)
+set(LUAU_COMMON_INC ${LUAU_DIR}/Common/include)
 
 add_library(luau_vm STATIC ${LUAU_VM_SRC})
 target_compile_options(luau_vm PRIVATE -DLUA_USE_LONGJMP=1 -DLUA_USE_ASSERT=0 -O2 -fno-rtti -fno-exceptions -fvisibility=hidden)
-target_include_directories(luau_vm PUBLIC ${LUAU_DIR}/VM/include)
+target_include_directories(luau_vm PUBLIC ${LUAU_DIR}/VM/include ${LUAU_COMMON_INC})
 
 add_library(luau_compiler STATIC ${LUAU_COMPILER_SRC} ${LUAU_AST_SRC})
 target_compile_options(luau_compiler PRIVATE -DLUA_USE_LONGJMP=1 -O2 -fno-rtti -fno-exceptions -fvisibility=hidden)
 target_include_directories(luau_compiler PUBLIC
+    ${LUAU_COMMON_INC}
     ${LUAU_DIR}/Compiler/include
     ${LUAU_DIR}/Ast/include
     ${LUAU_DIR}/VM/include
@@ -149,6 +98,7 @@ target_link_options(larplua PRIVATE -Wl,-z,max-page-size=16384)
 add_library(larpluau SHARED larpluau.cpp)
 target_compile_options(larpluau PRIVATE -O2 -fno-rtti -fno-exceptions -fvisibility=hidden -DLUA_USE_LONGJMP=1)
 target_include_directories(larpluau PRIVATE
+    ${LUAU_COMMON_INC}
     ${LUAU_DIR}/VM/include
     ${LUAU_DIR}/Compiler/include
     ${LUAU_DIR}/Ast/include
