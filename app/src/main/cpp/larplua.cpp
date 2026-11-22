@@ -1379,6 +1379,50 @@ int l_require(lua_State* L) {
     return 1;
 }
 
+static JavaVM* g_jvm = nullptr;
+static jclass g_httpClass = nullptr;
+static jmethodID g_httpMethod = nullptr;
+
+static bool httpsViaJava(const std::string& url, const std::string& method, const std::string& body,
+                         const std::vector<std::pair<std::string, std::string>>& headers, int& code, std::string& out) {
+    if (!g_jvm || !g_httpClass || !g_httpMethod) return false;
+    JNIEnv* env = nullptr;
+    bool attached = false;
+    if (g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6) != JNI_OK) {
+        if (g_jvm->AttachCurrentThread(&env, nullptr) != JNI_OK) return false;
+        attached = true;
+    }
+    std::string hdr;
+    for (auto& h : headers) hdr += h.first + ": " + h.second + "\n";
+    jstring ju = env->NewStringUTF(url.c_str());
+    jstring jm = env->NewStringUTF(method.c_str());
+    jstring jh = env->NewStringUTF(hdr.c_str());
+    jbyteArray jb = nullptr;
+    if (!body.empty()) {
+        jb = env->NewByteArray((jsize)body.size());
+        env->SetByteArrayRegion(jb, 0, (jsize)body.size(), (const jbyte*)body.data());
+    }
+    jbyteArray res = (jbyteArray)env->CallStaticObjectMethod(g_httpClass, g_httpMethod, ju, jm, jb, jh);
+    bool ok = false;
+    if (env->ExceptionCheck()) env->ExceptionClear();
+    if (res) {
+        jsize n = env->GetArrayLength(res);
+        std::string raw((size_t)n, '\0');
+        env->GetByteArrayRegion(res, 0, n, (jbyte*)&raw[0]);
+        size_t nl = raw.find('\n');
+        if (nl != std::string::npos) {
+            code = atoi(raw.substr(0, nl).c_str());
+            out = raw.substr(nl + 1);
+            ok = true;
+        }
+        env->DeleteLocalRef(res);
+    }
+    env->DeleteLocalRef(ju); env->DeleteLocalRef(jm); env->DeleteLocalRef(jh);
+    if (jb) env->DeleteLocalRef(jb);
+    if (attached) g_jvm->DetachCurrentThread();
+    return ok;
+}
+
 int l_request(lua_State* L) {
     std::string url, method = "GET", body;
     std::vector<std::pair<std::string, std::string>> headers;
@@ -1424,6 +1468,25 @@ int l_request(lua_State* L) {
         host = host_port.substr(0, colon);
         port = atoi(host_port.c_str() + colon + 1);
     } else host = host_port;
+
+    if (https) {
+        int hc = 0;
+        std::string hb;
+        bool okj = httpsViaJava(url, method, body, headers, hc, hb);
+        bool good = okj && hc >= 200 && hc < 300;
+        if (simple) {
+            if (!good) return luaL_error(L, "request failed: HTTP %d", hc);
+            pushStdString(L, hb);
+            return 1;
+        }
+        lua_newtable(L);
+        lua_pushboolean(L, good); lua_setfield(L, -2, "Success");
+        lua_pushinteger(L, hc); lua_setfield(L, -2, "StatusCode");
+        lua_pushstring(L, okj ? "" : "https failed"); lua_setfield(L, -2, "StatusMessage");
+        pushStdString(L, hb); lua_setfield(L, -2, "Body");
+        lua_newtable(L); lua_setfield(L, -2, "Headers");
+        return 1;
+    }
 
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
@@ -2519,6 +2582,15 @@ LARP_LUA_EXPORT int larplua_set_shared(const char* key, const char* value) {
 
 extern "C" JNIEXPORT jint JNICALL
 Java_com_larp_launcher_lua_LarpLuaNative_nativeInit(JNIEnv* env, jclass, jstring root, jstring scripts, jstring workspace, jint w, jint h, jfloat scale) {
+    if (!g_jvm) env->GetJavaVM(&g_jvm);
+    if (!g_httpClass) {
+        jclass local = env->FindClass("com/larp/launcher/lua/LarpHttp");
+        if (local) {
+            g_httpClass = (jclass)env->NewGlobalRef(local);
+            g_httpMethod = env->GetStaticMethodID(g_httpClass, "request", "(Ljava/lang/String;Ljava/lang/String;[BLjava/lang/String;)[B");
+        }
+        if (env->ExceptionCheck()) env->ExceptionClear();
+    }
     const char* r = env->GetStringUTFChars(root, nullptr);
     const char* s = env->GetStringUTFChars(scripts, nullptr);
     const char* ws = env->GetStringUTFChars(workspace, nullptr);

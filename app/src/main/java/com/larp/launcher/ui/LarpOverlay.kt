@@ -69,6 +69,10 @@ object LarpOverlay {
         var stroke = 0f
         var strokeColor = Color.TRANSPARENT
         var muted = false
+        var sheet: android.graphics.Bitmap? = null
+        var rect: IntArray? = null
+        var imgTint = 0
+        var hasTint = false
         var min = 0f
         var max = 100f
         var drag = false
@@ -456,6 +460,19 @@ object LarpOverlay {
                     val bytes = Base64.decode(value.toString(), Base64.DEFAULT)
                     v.setImageBitmap(android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size))
                 }
+                "imagePath" -> if (v is ImageView) {
+                    n.sheet = sheetCache.getOrPut(value.toString()) { android.graphics.BitmapFactory.decodeFile(value.toString()) }
+                    applySprite(n)
+                }
+                "imageRect" -> if (v is ImageView) {
+                    val a = value as JSONArray
+                    n.rect = IntArray(4) { a.optInt(it, 0) }
+                    applySprite(n)
+                }
+                "imageTint" -> if (v is ImageView) {
+                    n.imgTint = color(value); n.hasTint = true
+                    v.setColorFilter(n.imgTint, android.graphics.PorterDuff.Mode.SRC_IN)
+                }
                 "scaleType" -> (v as? ImageView)?.scaleType = runCatching { ImageView.ScaleType.valueOf(value.toString().uppercase()) }.getOrDefault(ImageView.ScaleType.FIT_CENTER)
                 "mode", "layer" -> {}
                 "layerX", "layerY", "layerW", "layerH" -> updateSystemLayer(n.layer, k, (value as Number).toFloat())
@@ -464,6 +481,20 @@ object LarpOverlay {
         if (styleDirty) restyle(n)
         if (layoutDirty && relayoutAfter) relayout(n)
         n.muted = false
+    }
+
+    private val sheetCache = HashMap<String, android.graphics.Bitmap?>()
+
+    private fun applySprite(n: Node) {
+        val v = n.view as? ImageView ?: return
+        val s = n.sheet ?: return
+        val r = n.rect
+        if (r == null) { v.setImageBitmap(s); return }
+        val x = r[0].coerceIn(0, s.width - 1)
+        val y = r[1].coerceIn(0, s.height - 1)
+        val w = r[2].coerceIn(1, s.width - x)
+        val h = r[3].coerceIn(1, s.height - y)
+        v.setImageBitmap(android.graphics.Bitmap.createBitmap(s, x, y, w, h))
     }
 
     private fun updateSystemLayer(layer: Layer, key: String, value: Float) {
