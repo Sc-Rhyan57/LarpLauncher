@@ -59,7 +59,8 @@ target_compile_options(luau_vm PRIVATE -DLUA_USE_LONGJMP=1 -DLUA_USE_ASSERT=0 -O
 target_include_directories(luau_vm PUBLIC ${LUAU_DIR}/VM/include ${LUAU_COMMON_INC})
 
 add_library(luau_compiler STATIC ${LUAU_COMPILER_SRC} ${LUAU_AST_SRC})
-target_compile_options(luau_compiler PRIVATE -DLUA_USE_LONGJMP=1 -O2 -fno-rtti -fno-exceptions -fvisibility=hidden)
+# O Compiler do Luau usa try/throw, então precisa de exceptions habilitadas
+target_compile_options(luau_compiler PRIVATE -DLUA_USE_LONGJMP=1 -O2 -fno-rtti -fexceptions -fvisibility=hidden)
 target_include_directories(luau_compiler PUBLIC
     ${LUAU_COMMON_INC}
     ${LUAU_DIR}/Compiler/include
