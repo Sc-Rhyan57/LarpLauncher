@@ -219,7 +219,7 @@ int l_listfolder(lua_State* L) {
     while ((e = readdir(d))) {
         if (strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0) continue;
         lua_pushstring(L, e->d_name);
-        lua_seti(L, -2, i++);
+        lua_rawseti(L, -2, i++);
     }
     closedir(d);
     return 1;
@@ -398,7 +398,7 @@ LARP_LUAU_EXPORT int larpluau_init(const char* scriptsDirP, const char* workspac
     if (!g_state) return -1;
     luaL_openlibs(g_state);
     registerGlobals(g_state);
-    lua_callbacks(g_state)->interrupt = reinterpret_cast<void*>(l_interrupt);
+    lua_callbacks(g_state)->interrupt = l_interrupt;
     luaL_sandbox(g_state);
     g_thread = lua_newthread(g_state);
     lua_ref(g_state, -1);

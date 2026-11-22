@@ -31,6 +31,11 @@ extern "C" {
 #include "lua.h"
 #include "lauxlib.h"
 #include "lualib.h"
+
+// lua_pushcfunction com lambdas contendo {a,b} quebra a macro; versao variadica resolve
+#undef lua_pushcfunction
+#define lua_pushcfunction(L, ...) lua_pushcclosure(L, (__VA_ARGS__), 0)
+
 }
 
 #define LARP_LUA_TAG "LarpLua"
@@ -1200,7 +1205,7 @@ int l_install_hook(lua_State* L) {
         std::lock_guard<std::mutex> g(g_hooksLock);
         auto it = g_hooks.find(target);
         if (it != g_hooks.end()) {
-            lua_unref(L, LUA_REGISTRYINDEX, it->second->ref);
+            luaL_unref(L, LUA_REGISTRYINDEX, it->second->ref);
             it->second->ref = luaL_ref(L, LUA_REGISTRYINDEX);
             it->second->ret = tmp.ret;
             it->second->args = tmp.args;
@@ -2453,7 +2458,7 @@ LARP_LUA_EXPORT void larplua_shutdown() {
     {
         std::lock_guard<std::mutex> hg(g_hooksLock);
         for (auto& kv : g_hooks) {
-            if (kv.second->ref != LUA_NOREF && g_state) lua_unref(g_state, LUA_REGISTRYINDEX, kv.second->ref);
+            if (kv.second->ref != LUA_NOREF && g_state) luaL_unref(g_state, LUA_REGISTRYINDEX, kv.second->ref);
             delete kv.second;
         }
         g_hooks.clear();
