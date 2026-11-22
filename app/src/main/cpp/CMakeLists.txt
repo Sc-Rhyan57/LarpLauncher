@@ -5,29 +5,23 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
-include(FetchContent)
-set(FETCHCONTENT_QUIET FALSE)
+set(LUA_TARBALL ${CMAKE_BINARY_DIR}/_deps/lua-5.4.7.tar.gz)
+set(LUA_DIR ${CMAKE_BINARY_DIR}/_deps/lua-src)
 
-FetchContent_Declare(
-    lua
-    URL https://www.lua.org/ftp/lua-5.4.7.tar.gz
-    URL_HASH SHA256=9fbf5e28ef86c69858f6d3d34eccc32e911c1a28b4120ff3e84aaa70cfbf1e30
-    SOURCE_DIR ${CMAKE_BINARY_DIR}/_deps/lua-src
-)
-
-FetchContent_GetProperties(lua)
-if(NOT lua_POPULATED)
-    FetchContent_Populate(lua)
+if(NOT EXISTS ${LUA_DIR}/lapi.c)
+    message(STATUS "Downloading Lua 5.4.7...")
+    file(DOWNLOAD
+        https://www.lua.org/ftp/lua-5.4.7.tar.gz
+        ${LUA_TARBALL}
+        EXPECTED_HASH SHA256=9fbf5e28ef86c69858f6d3d34eccc32e911c1a28b4120ff3e84aaa70cfbf1e30
+        SHOW_PROGRESS
+    )
+    message(STATUS "Extracting Lua 5.4.7...")
+    file(ARCHIVE_EXTRACT INPUT ${LUA_TARBALL} DESTINATION ${CMAKE_BINARY_DIR}/_deps)
+    file(RENAME ${CMAKE_BINARY_DIR}/_deps/lua-5.4.7 ${LUA_DIR})
 endif()
 
-if(EXISTS ${lua_SOURCE_DIR}/lua.h)
-    set(LUA_INCLUDE ${lua_SOURCE_DIR})
-elseif(EXISTS ${lua_SOURCE_DIR}/lua-5.4.7/lua.h)
-    set(LUA_INCLUDE ${lua_SOURCE_DIR}/lua-5.4.7)
-else()
-    set(LUA_INCLUDE ${lua_SOURCE_DIR})
-endif()
-
+set(LUA_INCLUDE ${LUA_DIR})
 file(GLOB LUA_SRC ${LUA_INCLUDE}/*.c)
 list(REMOVE_ITEM LUA_SRC
     ${LUA_INCLUDE}/lua.c
@@ -39,90 +33,91 @@ add_library(lua_static STATIC ${LUA_SRC})
 target_compile_options(lua_static PRIVATE -DLUA_USE_IOS=0 -DLUA_USE_DLOPEN=0 -DLUA_COMPAT_5_3 -O2 -fno-rtti -fno-exceptions -fvisibility=hidden)
 target_include_directories(lua_static PUBLIC ${LUA_INCLUDE})
 
-FetchContent_Declare(
-    luau
-    GIT_REPOSITORY https://github.com/luau-lang/luau.git
-    GIT_TAG 0.644
-    GIT_SHALLOW TRUE
-    SOURCE_DIR ${CMAKE_BINARY_DIR}/_deps/luau-src
-)
+set(LUAU_DIR ${CMAKE_BINARY_DIR}/_deps/luau-src)
 
-FetchContent_GetProperties(luau)
-if(NOT luau_POPULATED)
-    FetchContent_Populate(luau)
+if(NOT EXISTS ${LUAU_DIR}/VM/src/lapi.cpp)
+    message(STATUS "Cloning Luau 0.644...")
+    find_package(Git REQUIRED)
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} clone --depth 1 --branch 0.644 https://github.com/luau-lang/luau.git ${LUAU_DIR}
+        RESULT_VARIABLE LUAU_CLONE_RESULT
+    )
+    if(NOT LUAU_CLONE_RESULT EQUAL 0)
+        message(FATAL_ERROR "Failed to clone Luau repository")
+    endif()
 endif()
 
 set(LUAU_VM_SRC
-    ${luau_SOURCE_DIR}/VM/src/lapi.cpp
-    ${luau_SOURCE_DIR}/VM/src/laux.cpp
-    ${luau_SOURCE_DIR}/VM/src/lbaselib.cpp
-    ${luau_SOURCE_DIR}/VM/src/lbitlib.cpp
-    ${luau_SOURCE_DIR}/VM/src/lbuffer.cpp
-    ${luau_SOURCE_DIR}/VM/src/lbuflib.cpp
-    ${luau_SOURCE_DIR}/VM/src/lbuiltins.cpp
-    ${luau_SOURCE_DIR}/VM/src/lcorolib.cpp
-    ${luau_SOURCE_DIR}/VM/src/ldblib.cpp
-    ${luau_SOURCE_DIR}/VM/src/ldebug.cpp
-    ${luau_SOURCE_DIR}/VM/src/ldo.cpp
-    ${luau_SOURCE_DIR}/VM/src/lfunc.cpp
-    ${luau_SOURCE_DIR}/VM/src/lgc.cpp
-    ${luau_SOURCE_DIR}/VM/src/lgcdebug.cpp
-    ${luau_SOURCE_DIR}/VM/src/linit.cpp
-    ${luau_SOURCE_DIR}/VM/src/lmathlib.cpp
-    ${luau_SOURCE_DIR}/VM/src/lmem.cpp
-    ${luau_SOURCE_DIR}/VM/src/lnumprint.cpp
-    ${luau_SOURCE_DIR}/VM/src/lobject.cpp
-    ${luau_SOURCE_DIR}/VM/src/loslib.cpp
-    ${luau_SOURCE_DIR}/VM/src/lperf.cpp
-    ${luau_SOURCE_DIR}/VM/src/lstate.cpp
-    ${luau_SOURCE_DIR}/VM/src/lstring.cpp
-    ${luau_SOURCE_DIR}/VM/src/lstrlib.cpp
-    ${luau_SOURCE_DIR}/VM/src/ltable.cpp
-    ${luau_SOURCE_DIR}/VM/src/ltablib.cpp
-    ${luau_SOURCE_DIR}/VM/src/ltm.cpp
-    ${luau_SOURCE_DIR}/VM/src/ludata.cpp
-    ${luau_SOURCE_DIR}/VM/src/lutf8lib.cpp
-    ${luau_SOURCE_DIR}/VM/src/lvmexecute.cpp
-    ${luau_SOURCE_DIR}/VM/src/lvmload.cpp
-    ${luau_SOURCE_DIR}/VM/src/lvmutils.cpp
+    ${LUAU_DIR}/VM/src/lapi.cpp
+    ${LUAU_DIR}/VM/src/laux.cpp
+    ${LUAU_DIR}/VM/src/lbaselib.cpp
+    ${LUAU_DIR}/VM/src/lbitlib.cpp
+    ${LUAU_DIR}/VM/src/lbuffer.cpp
+    ${LUAU_DIR}/VM/src/lbuflib.cpp
+    ${LUAU_DIR}/VM/src/lbuiltins.cpp
+    ${LUAU_DIR}/VM/src/lcorolib.cpp
+    ${LUAU_DIR}/VM/src/ldblib.cpp
+    ${LUAU_DIR}/VM/src/ldebug.cpp
+    ${LUAU_DIR}/VM/src/ldo.cpp
+    ${LUAU_DIR}/VM/src/lfunc.cpp
+    ${LUAU_DIR}/VM/src/lgc.cpp
+    ${LUAU_DIR}/VM/src/lgcdebug.cpp
+    ${LUAU_DIR}/VM/src/linit.cpp
+    ${LUAU_DIR}/VM/src/lmathlib.cpp
+    ${LUAU_DIR}/VM/src/lmem.cpp
+    ${LUAU_DIR}/VM/src/lnumprint.cpp
+    ${LUAU_DIR}/VM/src/lobject.cpp
+    ${LUAU_DIR}/VM/src/loslib.cpp
+    ${LUAU_DIR}/VM/src/lperf.cpp
+    ${LUAU_DIR}/VM/src/lstate.cpp
+    ${LUAU_DIR}/VM/src/lstring.cpp
+    ${LUAU_DIR}/VM/src/lstrlib.cpp
+    ${LUAU_DIR}/VM/src/ltable.cpp
+    ${LUAU_DIR}/VM/src/ltablib.cpp
+    ${LUAU_DIR}/VM/src/ltm.cpp
+    ${LUAU_DIR}/VM/src/ludata.cpp
+    ${LUAU_DIR}/VM/src/lutf8lib.cpp
+    ${LUAU_DIR}/VM/src/lvmexecute.cpp
+    ${LUAU_DIR}/VM/src/lvmload.cpp
+    ${LUAU_DIR}/VM/src/lvmutils.cpp
 )
 
 set(LUAU_COMPILER_SRC
-    ${luau_SOURCE_DIR}/Compiler/src/BytecodeBuilder.cpp
-    ${luau_SOURCE_DIR}/Compiler/src/Compiler.cpp
-    ${luau_SOURCE_DIR}/Compiler/src/Builtins.cpp
-    ${luau_SOURCE_DIR}/Compiler/src/BuiltinFolding.cpp
-    ${luau_SOURCE_DIR}/Compiler/src/ConstantFolding.cpp
-    ${luau_SOURCE_DIR}/Compiler/src/CostModel.cpp
-    ${luau_SOURCE_DIR}/Compiler/src/TableShape.cpp
-    ${luau_SOURCE_DIR}/Compiler/src/Types.cpp
-    ${luau_SOURCE_DIR}/Compiler/src/ValueTracking.cpp
-    ${luau_SOURCE_DIR}/Compiler/src/lcode.cpp
+    ${LUAU_DIR}/Compiler/src/BytecodeBuilder.cpp
+    ${LUAU_DIR}/Compiler/src/Compiler.cpp
+    ${LUAU_DIR}/Compiler/src/Builtins.cpp
+    ${LUAU_DIR}/Compiler/src/BuiltinFolding.cpp
+    ${LUAU_DIR}/Compiler/src/ConstantFolding.cpp
+    ${LUAU_DIR}/Compiler/src/CostModel.cpp
+    ${LUAU_DIR}/Compiler/src/TableShape.cpp
+    ${LUAU_DIR}/Compiler/src/Types.cpp
+    ${LUAU_DIR}/Compiler/src/ValueTracking.cpp
+    ${LUAU_DIR}/Compiler/src/lcode.cpp
 )
 
 set(LUAU_AST_SRC
-    ${luau_SOURCE_DIR}/Ast/src/Ast.cpp
-    ${luau_SOURCE_DIR}/Ast/src/Confusables.cpp
-    ${luau_SOURCE_DIR}/Ast/src/Lexer.cpp
-    ${luau_SOURCE_DIR}/Ast/src/Location.cpp
-    ${luau_SOURCE_DIR}/Ast/src/Parser.cpp
-    ${luau_SOURCE_DIR}/Ast/src/StringUtils.cpp
-    ${luau_SOURCE_DIR}/Ast/src/TimeTrace.cpp
+    ${LUAU_DIR}/Ast/src/Ast.cpp
+    ${LUAU_DIR}/Ast/src/Confusables.cpp
+    ${LUAU_DIR}/Ast/src/Lexer.cpp
+    ${LUAU_DIR}/Ast/src/Location.cpp
+    ${LUAU_DIR}/Ast/src/Parser.cpp
+    ${LUAU_DIR}/Ast/src/StringUtils.cpp
+    ${LUAU_DIR}/Ast/src/TimeTrace.cpp
 )
 
 add_library(luau_vm STATIC ${LUAU_VM_SRC})
 target_compile_options(luau_vm PRIVATE -DLUA_USE_LONGJMP=1 -DLUA_USE_ASSERT=0 -O2 -fno-rtti -fno-exceptions -fvisibility=hidden)
-target_include_directories(luau_vm PUBLIC ${luau_SOURCE_DIR}/VM/include)
+target_include_directories(luau_vm PUBLIC ${LUAU_DIR}/VM/include)
 
 add_library(luau_compiler STATIC ${LUAU_COMPILER_SRC} ${LUAU_AST_SRC})
 target_compile_options(luau_compiler PRIVATE -DLUA_USE_LONGJMP=1 -O2 -fno-rtti -fno-exceptions -fvisibility=hidden)
 target_include_directories(luau_compiler PUBLIC
-    ${luau_SOURCE_DIR}/Compiler/include
-    ${luau_SOURCE_DIR}/Ast/include
-    ${luau_SOURCE_DIR}/VM/include
-    ${luau_SOURCE_DIR}/VM/src
-    ${luau_SOURCE_DIR}/Compiler/src
-    ${luau_SOURCE_DIR}/Ast/src
+    ${LUAU_DIR}/Compiler/include
+    ${LUAU_DIR}/Ast/include
+    ${LUAU_DIR}/VM/include
+    ${LUAU_DIR}/VM/src
+    ${LUAU_DIR}/Compiler/src
+    ${LUAU_DIR}/Ast/src
 )
 target_link_libraries(luau_compiler luau_vm)
 
@@ -153,9 +148,9 @@ target_link_options(larplua PRIVATE -Wl,-z,max-page-size=16384)
 add_library(larpluau SHARED larpluau.cpp)
 target_compile_options(larpluau PRIVATE -O2 -fno-rtti -fno-exceptions -fvisibility=hidden -DLUA_USE_LONGJMP=1)
 target_include_directories(larpluau PRIVATE
-    ${luau_SOURCE_DIR}/VM/include
-    ${luau_SOURCE_DIR}/Compiler/include
-    ${luau_SOURCE_DIR}/Ast/include
+    ${LUAU_DIR}/VM/include
+    ${LUAU_DIR}/Compiler/include
+    ${LUAU_DIR}/Ast/include
 )
 target_link_libraries(larpluau ${log-lib} luau_vm luau_compiler dl)
 target_link_options(larpluau PRIVATE -Wl,-z,max-page-size=16384)
