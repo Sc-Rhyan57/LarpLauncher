@@ -267,9 +267,7 @@ int l_typeof(lua_State* L) {
 }
 
 int l_getgenv(lua_State* L) {
-    lua_pushvalue(L, LUA_REGISTRYINDEX);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
-    lua_remove(L, -2);
+    lua_pushvalue(L, LUA_GLOBALSINDEX);
     return 1;
 }
 
