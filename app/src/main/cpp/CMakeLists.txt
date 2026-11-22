@@ -8,7 +8,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(LUA_TARBALL ${CMAKE_BINARY_DIR}/_deps/lua-5.4.7.tar.gz)
 set(LUA_DIR ${CMAKE_BINARY_DIR}/_deps/lua-src)
 
-if(NOT EXISTS ${LUA_DIR}/lapi.c)
+if(NOT EXISTS ${LUA_DIR}/src/lapi.c)
     message(STATUS "Downloading Lua 5.4.7...")
     file(DOWNLOAD
         https://www.lua.org/ftp/lua-5.4.7.tar.gz
@@ -17,11 +17,12 @@ if(NOT EXISTS ${LUA_DIR}/lapi.c)
         SHOW_PROGRESS
     )
     message(STATUS "Extracting Lua 5.4.7...")
+    file(REMOVE_RECURSE ${LUA_DIR} ${CMAKE_BINARY_DIR}/_deps/lua-5.4.7)
     file(ARCHIVE_EXTRACT INPUT ${LUA_TARBALL} DESTINATION ${CMAKE_BINARY_DIR}/_deps)
     file(RENAME ${CMAKE_BINARY_DIR}/_deps/lua-5.4.7 ${LUA_DIR})
 endif()
 
-set(LUA_INCLUDE ${LUA_DIR})
+set(LUA_INCLUDE ${LUA_DIR}/src)
 file(GLOB LUA_SRC ${LUA_INCLUDE}/*.c)
 list(REMOVE_ITEM LUA_SRC
     ${LUA_INCLUDE}/lua.c
