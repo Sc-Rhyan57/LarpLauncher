@@ -11,7 +11,7 @@ set(FETCHCONTENT_QUIET FALSE)
 FetchContent_Declare(
     lua
     URL https://www.lua.org/ftp/lua-5.4.7.tar.gz
-    URL_HASH SHA256=f463cb7c282cf6b18e4b914f4d10af3a45aef83b4c2f54e25fec6b6e9c8b0c2e
+    URL_HASH SHA256=9fbf5e28ef86c69858f6d3d34eccc32e911c1a28b4120ff3e84aaa70cfbf1e30
 )
 
 FetchContent_GetProperties(lua)

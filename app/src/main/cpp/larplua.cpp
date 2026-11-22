@@ -2073,14 +2073,13 @@ int l_newcclosure(lua_State* L) {
     luaL_checktype(L, 1, LUA_TFUNCTION);
     if (lua_iscfunction(L, 1)) { lua_pushvalue(L, 1); return 1; }
     lua_pushvalue(L, 1);
+    lua_setfield(L, LUA_REGISTRYINDEX, "LarpLua.Upvalue");
     lua_pushcclosure(L, [](lua_State* L) -> int {
         lua_getfield(L, LUA_REGISTRYINDEX, "LarpLua.Upvalue");
         lua_insert(L, 1);
         lua_call(L, lua_gettop(L) - 1, LUA_MULTRET);
         return lua_gettop(L);
-    }, "wrapped", 1);
-    lua_pushvalue(L, -1);
-    lua_setfield(L, LUA_REGISTRYINDEX, "LarpLua.Upvalue");
+    }, 1);
     return 1;
 }
 
