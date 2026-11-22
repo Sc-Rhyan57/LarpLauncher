@@ -18,11 +18,10 @@
 #include <string>
 #include <vector>
 
-extern "C" {
+// Luau e compilado como C++ (simbolos mangled): NAO envolver em extern "C"
 #include "lua.h"
 #include "lualib.h"
 #include "luacode.h"
-}
 
 #define LARP_LUAU_TAG "LarpLuau"
 #define LARP_LUAU_EXPORT extern "C" __attribute__((visibility("default")))
