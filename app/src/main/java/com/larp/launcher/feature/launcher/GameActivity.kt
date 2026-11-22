@@ -216,6 +216,7 @@ class GameActivity : ComponentActivity() {
     override fun onDestroy() {
         if (current?.get() === this) current = null
         com.larp.launcher.ui.LarpOverlay.detach()
+        com.larp.launcher.lua.LarpLua.shutdown()
         callPlayer("destroy")
         if (devKitStarted) {
             runCatching { baseContext.stopService(launcherServiceIntent(DevKitOverlayService::class.java)) }
@@ -254,11 +255,23 @@ class GameActivity : ComponentActivity() {
             callPlayer("resume")
             callPlayer("windowFocusChanged", arrayOf(Boolean::class.javaPrimitiveType!!), hasWindowFocus())
         }
+        startLarpLua()
         if (modsLoaded) showProgress()
         loadEosSdkSafely(classLoader)
         maybeStartDevKitOverlay()
         maybeStartVoiceBubble()
         Log.i(TAG, "UnityPlayer criado")
+    }
+
+    private fun startLarpLua() {
+        runCatching {
+            val dm = resources.displayMetrics
+            val w = dm.widthPixels
+            val h = dm.heightPixels
+            val sc = dm.density
+            val ok = com.larp.launcher.lua.LarpLua.init(this, w, h, sc)
+            if (ok) com.larp.launcher.lua.LarpLua.startTicking(w, h)
+        }.onFailure { Log.w(TAG, "LarpLua init: ${it.message}") }
     }
 
     private fun loadFridaGadget(env: GameEnv) {

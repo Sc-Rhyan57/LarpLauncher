@@ -1,0 +1,33 @@
+local v = math.random()
+print("random float: " .. tostring(v))
+
+local i = math.random(1, 100)
+print("random int 1-100: " .. i)
+
+print("math.pi = " .. tostring(math.pi))
+print("math.huge = " .. tostring(math.huge))
+print("math.floor(3.7) = " .. math.floor(3.7))
+print("math.ceil(3.2) = " .. math.ceil(3.2))
+print("math.sqrt(16) = " .. math.sqrt(16))
+print("math.abs(-5) = " .. math.abs(-5))
+print("math.max(1,2,3) = " .. math.max(1, 2, 3))
+print("math.min(1,2,3) = " .. math.min(1, 2, 3))
+
+print("5 + 3 = " .. (5 + 3))
+print("5 - 3 = " .. (5 - 3))
+print("5 * 3 = " .. (5 * 3))
+print("15 / 3 = " .. (15 / 3))
+print("17 % 5 = " .. (17 % 5))
+print("2 ^ 10 = " .. (2 ^ 10))
+print("5 == 5: " .. tostring(5 == 5))
+print("5 ~= 3: " .. tostring(5 ~= 3))
+print("5 > 3: " .. tostring(5 > 3))
+print("5 >= 5: " .. tostring(5 >= 5))
+print("5 < 3: " .. tostring(5 < 3))
+print("5 <= 5: " .. tostring(5 <= 5))
+
+local s = "hello" .. " " .. "world"
+print("concat: " .. s)
+print("len: " .. #s)
+print("upper: " .. string.upper(s))
+print("format: " .. string.format("%d-%s-%.2f", 42, "abc", 3.14))
