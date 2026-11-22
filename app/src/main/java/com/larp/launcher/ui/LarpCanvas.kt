@@ -17,6 +17,13 @@ class LarpCanvas(context: Context) : View(context) {
     private val path = Path()
     private val rect = RectF()
 
+    var onSize: ((Int, Int) -> Unit)? = null
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        onSize?.invoke(w, h)
+    }
+
     fun submit(data: IntArray, joined: String) {
         ops = data
         texts = if (joined.isEmpty()) emptyList() else joined.split('\u0001')

@@ -92,6 +92,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (!StoragePermission.isGranted(this)) {
+            if (android.os.Build.VERSION.SDK_INT < 30) {
+                requestPermissions(arrayOf(android.Manifest.permission.WRITE_EXTERNAL_STORAGE, android.Manifest.permission.READ_EXTERNAL_STORAGE), 4711)
+            } else {
+                android.widget.Toast.makeText(this, "Permita o acesso a todos os arquivos para o Larp funcionar", android.widget.Toast.LENGTH_LONG).show()
+                StoragePermission.request(this)
+            }
+        }
         if (lastOverlayGranted != OverlayPermissionHolder.isGranted(this)) {
             lastOverlayGranted = OverlayPermissionHolder.isGranted(this)
             OverlayPermissionHolder.bump()

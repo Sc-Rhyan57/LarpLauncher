@@ -181,6 +181,11 @@ class GameLauncher @Inject constructor(
     }
 
     private fun startGame(env: GameEnv, privateBepInEx: Boolean, noMods: Boolean = false, frida: Boolean = false) {
+        if (!com.larp.launcher.StoragePermission.isGranted(context)) {
+            android.widget.Toast.makeText(context, "Permita o acesso a todos os arquivos e abra a partida de novo", android.widget.Toast.LENGTH_LONG).show()
+            com.larp.launcher.StoragePermission.request(context)
+            return
+        }
         killStaleGameProcess()
         GameEnvFactory.reset()
         val intent = GameActivity.newIntent(context, env.packageName, privateBepInEx, noMods, frida)

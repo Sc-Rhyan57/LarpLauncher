@@ -266,8 +266,16 @@ class GameActivity : ComponentActivity() {
     private fun startLarpLua() {
         runCatching {
             val dm = resources.displayMetrics
-            val w = dm.widthPixels
-            val h = dm.heightPixels
+            var w = dm.widthPixels
+            var h = dm.heightPixels
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                val b = getSystemService(android.view.WindowManager::class.java).maximumWindowMetrics.bounds
+                w = b.width(); h = b.height()
+            } else {
+                val p = android.graphics.Point()
+                @Suppress("DEPRECATION") windowManager.defaultDisplay.getRealSize(p)
+                w = p.x; h = p.y
+            }
             val sc = dm.density
             val ok = com.larp.launcher.lua.LarpLua.init(this, w, h, sc)
             if (ok) com.larp.launcher.lua.LarpLua.startTicking(w, h)

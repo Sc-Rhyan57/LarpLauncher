@@ -263,6 +263,7 @@ object LarpOverlay {
         applyProps(node, p, false)
         parent.addView(view, layoutFor(node, parent))
         if (type == "canvas") {
+            (view as? LarpCanvas)?.onSize = { cw, ch -> emit(layerId, id, "size", "$cw,$ch") }
             node.touch = p.optBoolean("touch", false)
         }
     }
